@@ -32,6 +32,7 @@ logo='
 '
 
 VNC_PASSWORD=""
+VNC_PASSWORD_LENGTH=10  # min 8, max 20
 PRODUCT_CHOICE=""
 NOVNC_PORT=""
 USE_UEFI=""
@@ -41,7 +42,11 @@ QEMU_MEMORY="3000"	# in megabytes
 QEMU_DISK_ARGS=""
 
 if [ -z "$VNC_PASSWORD" ]; then
-    VNC_PASSWORD=$(head -c 64 /dev/urandom | tr -dc A-Za-z0-9 | head -c 8)
+    if [ "$VNC_PASSWORD_LENGTH" -lt 8 ] || [ "$VNC_PASSWORD_LENGTH" -gt 20 ]; then
+        echo "Warning: VNC_PASSWORD_LENGTH must be between 8 and 20. Using default (10)."
+        VNC_PASSWORD_LENGTH=10
+    fi
+    VNC_PASSWORD=$(head -c 256 /dev/urandom | tr -dc A-Za-z0-9 | head -c "$VNC_PASSWORD_LENGTH")
 fi
 if [ -z "$NOVNC_PORT" ]; then    
     NOVNC_PORT=8080    
