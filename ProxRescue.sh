@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # ============================================================================================
 #  ██████  ██████   ██████  ██   ██ ███    ███  ██████  ██   ██    ██ ███    ██ ███████  ██████  
@@ -31,15 +32,21 @@ logo='
 '
 
 VNC_PASSWORD=""
+VNC_PASSWORD_LENGTH=10  # min 8, max 20
 PRODUCT_CHOICE=""
 NOVNC_PORT=""
 USE_UEFI=""
 NAME_SERVER="1.1.1.1"
 
 QEMU_MEMORY="3000"	# in megabytes
+QEMU_DISK_ARGS=""
 
-if [ -z "$VNC_PASSWORD" ]; then    
-    VNC_PASSWORD=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 8)    
+if [ -z "$VNC_PASSWORD" ]; then
+    if [ "$VNC_PASSWORD_LENGTH" -lt 8 ] || [ "$VNC_PASSWORD_LENGTH" -gt 20 ]; then
+        echo "Warning: VNC_PASSWORD_LENGTH must be between 8 and 20. Using default (10)."
+        VNC_PASSWORD_LENGTH=10
+    fi
+    VNC_PASSWORD=$(head -c 256 /dev/urandom | tr -dc A-Za-z0-9 | head -c "$VNC_PASSWORD_LENGTH")
 fi
 if [ -z "$NOVNC_PORT" ]; then    
     NOVNC_PORT=8080    
@@ -54,6 +61,7 @@ show_help() {
     echo "  -mg                       Install Proxmox Mail Gateway."
     echo "  -vport                    Set noVNC port (default 8080)."
     echo "  -p, --password PASSWORD   Specify a password for the VNC connection."
+    echo "  -dns DNS_SERVER            Set DNS server (default 1.1.1.1)."
     echo "  -uefi                     Use UEFI for installation or system run."
     echo "  -h, --help                Show this help message and exit."
     echo ""
@@ -85,6 +93,11 @@ while [[ $# -gt 0 ]]; do
             PRODUCT_CHOICE="Proxmox Mail Gateway"
             shift 
             ;;
+        -dns)
+            NAME_SERVER="$2"
+            shift
+            shift
+            ;;
         -uefi)
             USE_UEFI="true"
             shift
@@ -99,12 +112,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-clear_list() {    
-    pkill -f websockify
+clear_list() {
+    pkill -f websockify || true
     echo "All noVNC sessions have been terminated."
-    ssh-keygen -R 127.0.0.1:2222
+    ssh-keygen -R 127.0.0.1:2222 || true
     echo "SSH key cache cleared for 127.0.0.1 port 2222."
-    printf "quit\n" | nc 127.0.0.1 4444
+    printf "quit\n" | nc 127.0.0.1 4444 || true
     echo "Sent shutdown command to QEMU."
 }
 
@@ -114,14 +127,26 @@ print_logo() {
 }
 
 get_network_info() {
-    INTERFACE_NAME=$(udevadm info -q property /sys/class/net/$(ls /sys/class/net | grep -E '^(eth|ens|enp)') | grep "ID_NET_NAME_PATH=" | cut -d'=' -f2)
-    if [ -z "$INTERFACE_NAME" ]; then
+    local iface_candidates
+    iface_candidates=$(ls /sys/class/net | grep -E '^(eth|ens|enp)' || true)
+
+    if [ -z "$iface_candidates" ]; then
         echo "No valid network interface found."
         exit 1
     fi
 
-    IP_CIDR=$(ip addr show $INTERFACE_NAME | grep "inet\b" | awk '{print $2}')
-    GATEWAY=$(ip route | grep default | awk '{print $3}')
+    # Take the first matching interface if multiple are found
+    local first_iface
+    first_iface=$(echo "$iface_candidates" | head -n 1)
+
+    INTERFACE_NAME=$(udevadm info -q property "/sys/class/net/${first_iface}" | grep "ID_NET_NAME_PATH=" | cut -d'=' -f2 || true)
+    if [ -z "$INTERFACE_NAME" ]; then
+        # Fallback to the raw interface name if udevadm does not provide a path-based name
+        INTERFACE_NAME="$first_iface"
+    fi
+
+    IP_CIDR=$(ip addr show "$INTERFACE_NAME" | grep "inet\b" | awk '{print $2}' || true)
+    GATEWAY=$(ip route | grep default | awk '{print $3}' || true)
     IP_ADDRESS=$(echo "$IP_CIDR" | cut -d'/' -f1)
     CIDR=$(echo "$IP_CIDR" | cut -d'/' -f2)
 }
@@ -131,7 +156,7 @@ check_and_install_packages() {
     local required_packages=(curl sshpass dialog)
     local missing_packages=()
     for package in "${required_packages[@]}"; do
-        if ! dpkg -l | grep -qw $package; then
+        if ! dpkg -l "$package" 2>/dev/null | grep -qw "$package"; then
             missing_packages+=("$package")
         fi
     done
@@ -143,7 +168,7 @@ check_and_install_packages() {
         apt update -qq
         for package in "${missing_packages[@]}"; do
             echo "Install package: $package"
-            apt install -y $package -qq
+            apt install -y "$package" -qq
         done
         clear
         echo "$logo"
@@ -189,43 +214,46 @@ iface vmbr0 inet static
 EOF
     echo "Setting network in your Server"
     run_qemu "settings"
-    while true; do              
+    while true; do
         read -s -p "To configure the network on your server, enter the root password you set when installing $PRODUCT_NAME: " ROOT_PASSWORD
-        sshpass -p "$ROOT_PASSWORD" scp -o StrictHostKeyChecking=no -P 2222 /tmp/proxmox_network_config root@127.0.0.1:/etc/network/interfaces
-        if [ $? -eq 5 ]; then
+        local scp_rc=0
+        sshpass -p "$ROOT_PASSWORD" scp -o StrictHostKeyChecking=no -P 2222 /tmp/proxmox_network_config root@127.0.0.1:/etc/network/interfaces || scp_rc=$?
+        if [ "$scp_rc" -eq 5 ]; then
             echo "Authorization error. Please check your root password."
         else
-            break 
+            break
         fi
     done
-    sshpass -p "$ROOT_PASSWORD" ssh -o StrictHostKeyChecking=no -p 2222 root@127.0.0.1 "sed -i 's/nameserver.*/nameserver $NAME_SERVER/' /etc/resolv.conf"
-    if [ $? -ne 0 ]; then
+    local ssh_rc=0
+    sshpass -p "$ROOT_PASSWORD" ssh -o StrictHostKeyChecking=no -p 2222 root@127.0.0.1 "sed -i 's/nameserver.*/nameserver $NAME_SERVER/' /etc/resolv.conf" || ssh_rc=$?
+    if [ "$ssh_rc" -ne 0 ]; then
         echo "Error in change resolv.conf."
     else
         echo "resolv.conf updated."
         echo "Shutdown QEMU"
-        printf "system_powerdown\n" | nc 127.0.0.1 4444
+        printf "system_powerdown\n" | nc 127.0.0.1 4444 || true
         reboot_server
     fi
 }
 
 select_disks() {
     local disk_options=()
-    local disk_list=$(lsblk -dn -o NAME,TYPE,SIZE -e 1,7,11,14,15 | grep -E 'nvme|sd|vd' | awk '$2 == "disk" {print $1 " " $3}')
+    local disk_list
+    disk_list=$(lsblk -dn -o NAME,TYPE,SIZE -e 1,7,11,14,15 | grep -E 'nvme|sd|vd' | awk '$2 == "disk" {print $1 " " $3}' || true)
     local IFS=$'\n'
     for disk in $disk_list; do
         local disk_name=$(echo $disk | awk '{print $1}')
         local disk_size=$(echo $disk | awk '{print $2}')
         disk_options+=("$disk_name" "$disk_size" on)  # Все диски по умолчанию включены
     done
-    local selected_disks_output
-    selected_disks_output=$(dialog --checklist "Select disks to use for QEMU:" 15 50 8 "${disk_options[@]}" 3>&1 1>&2 2>&3 3>&-)    
-    if [ $? -eq 0 ] && [ -n "$selected_disks_output" ]; then
+    local selected_disks_output=""
+    local dialog_rc=0
+    selected_disks_output=$(dialog --checklist "Select disks to use for QEMU:" 15 50 8 "${disk_options[@]}" 3>&1 1>&2 2>&3 3>&-) || dialog_rc=$?
+    if [ "$dialog_rc" -eq 0 ] && [ -n "$selected_disks_output" ]; then
         QEMU_DISK_ARGS=""
-        local disk_index=0        
-        IFS=' ' read -ra selected_disks <<< "$selected_disks_output"
-        for disk_name in "${selected_disks[@]}"; do
-            QEMU_DISK_ARGS+="-drive file=/dev/$disk_name,format=raw,if=virtio,index=$disk_index,media=disk "
+        local disk_index=0
+        for disk_name in $selected_disks_output; do
+            QEMU_DISK_ARGS="$QEMU_DISK_ARGS -drive file=/dev/${disk_name},format=raw,if=virtio,index=${disk_index},media=disk"
             disk_index=$((disk_index + 1))
         done
     else
@@ -237,11 +265,12 @@ select_disks() {
 run_qemu() {
     get_network_info
     local task=$1
-    if [ -z "$QEMU_DISK_ARGS" ]; then        
-        local disks=$(lsblk -dn -o NAME,TYPE -e 1,7,11,14,15 | grep -E 'nvme|sd|vd' | awk '$2 == "disk" {print $1}')
+    if [ -z "$QEMU_DISK_ARGS" ]; then
+        local disks
+        disks=$(lsblk -dn -o NAME,TYPE -e 1,7,11,14,15 | grep -E 'nvme|sd|vd' | awk '$2 == "disk" {print $1}' || true)
         local disk_index=0
         for disk in $disks; do
-            QEMU_DISK_ARGS+=" -drive file=/dev/$disk,format=raw,if=virtio,index=$disk_index,media=disk"
+            QEMU_DISK_ARGS="$QEMU_DISK_ARGS -drive file=/dev/${disk},format=raw,if=virtio,index=${disk_index},media=disk"
             disk_index=$((disk_index + 1))
         done
     fi
@@ -253,10 +282,11 @@ run_qemu() {
     fi
     if [ "$task" == "install" ]; then
         QEMU_CDROM_ARGS="-drive file=/tmp/proxmox.iso,index=0,media=cdrom -boot d"
+        # Word splitting on unquoted vars is intentional here — each flag must be a separate argument
         qemu-system-x86_64 $QEMU_COMMON_ARGS $QEMU_DISK_ARGS $QEMU_CDROM_ARGS
         echo -e "\nQemu running...."
         sleep 2
-        echo "change vnc password $VNC_PASSWORD" | nc -q 1 127.0.0.1 4444
+        echo "change vnc password $VNC_PASSWORD" | nc -q 1 127.0.0.1 4444 || true
         print_logo
         echo "Use VNC client or Use Web Browser for connect to your server."
         echo -e "Ip for vnc connect:  $IP_ADDRESS\n"
@@ -267,17 +297,17 @@ run_qemu() {
         while true; do
             if ! pgrep -f "qemu-system-x86_64" > /dev/null; then
                 echo "QEMU process has stopped unexpectedly."
-                kill $NOVNC_PID 2>/dev/null
+                kill $NOVNC_PID 2>/dev/null || true
                 echo "noVNC stopped."
                 reboot_server
                 break
             fi
-            echo -ne "Installation in progress... If installation is complete, enter \"yes\" to continue: \r"
-            read -t 5 -n 3 confirmation
-            if [[ "$confirmation" == "yes" ]]; then
+            confirmation=""
+            read -t 5 -p "Installation in progress... Enter 'yes' when complete: " confirmation || true
+            if [ "$confirmation" = "yes" ]; then
                 echo "QEMU shutting down...."
-                printf "quit\n" | nc 127.0.0.1 4444
-                kill $NOVNC_PID  # завершение novnc_proxy
+                printf "quit\n" | nc 127.0.0.1 4444 || true
+                kill $NOVNC_PID 2>/dev/null || true
                 echo "noVNC stopped."
                 print_logo
                 configure_network
@@ -292,7 +322,7 @@ run_qemu() {
         QEMU_PID=$!
         echo -e "\nQemu running...."
         sleep 2
-        echo "change vnc password $VNC_PASSWORD" | nc -q 1 127.0.0.1 4444
+        echo "change vnc password $VNC_PASSWORD" | nc -q 1 127.0.0.1 4444 || true
         print_logo
         echo "Use VNC client or Use Web Browser for connect to your server."
         echo -e "Ip for vnc connect:  $IP_ADDRESS\n"
@@ -303,23 +333,51 @@ run_qemu() {
         while true; do
             if ! pgrep -f "qemu-system-x86_64" > /dev/null; then
                 echo "QEMU process has stopped unexpectedly."
-                kill $NOVNC_PID 2>/dev/null
+                kill $NOVNC_PID 2>/dev/null || true
                 echo "noVNC stopped."
                 reboot_server
                 break
             fi
-            echo -ne "System running... Enter 'shutdown' to shut down QEMU: \r"
-            read -t 5 -n 8 confirmation
-            if [[ "$confirmation" == "shutdown" ]]; then
+            confirmation=""
+            read -t 5 -p "System running... Enter 'shutdown' to stop QEMU: " confirmation || true
+            if [ "$confirmation" = "shutdown" ]; then
                 echo "QEMU shutting down manually..."
-                printf "system_powerdown\n" | nc 127.0.0.1 4444
-                kill $NOVNC_PID 2>/dev/null
+                printf "system_powerdown\n" | nc 127.0.0.1 4444 || true
+                kill $NOVNC_PID 2>/dev/null || true
                 echo "noVNC stopped."
                 reboot_server
                 break
             fi
         done
     fi   
+}
+
+verify_iso_checksum() {
+    local iso_name="$1"
+    echo "Downloading SHA256SUMS for verification..."
+    if ! curl -sf "https://download.proxmox.com/iso/SHA256SUMS" -o /tmp/proxmox_sha256sums; then
+        echo "Warning: Could not download SHA256SUMS file. Skipping verification."
+        return 0
+    fi
+    local expected_hash
+    expected_hash=$(grep "$iso_name" /tmp/proxmox_sha256sums | awk '{print $1}')
+    if [ -z "$expected_hash" ]; then
+        echo "Warning: No checksum found for $iso_name in SHA256SUMS. Skipping verification."
+        rm -f /tmp/proxmox_sha256sums
+        return 0
+    fi
+    echo "Verifying SHA256 checksum..."
+    local actual_hash
+    actual_hash=$(sha256sum /tmp/proxmox.iso | awk '{print $1}')
+    rm -f /tmp/proxmox_sha256sums
+    if [ "$expected_hash" = "$actual_hash" ]; then
+        echo "SHA256 checksum verified successfully."
+        return 0
+    else
+        echo "Expected: $expected_hash"
+        echo "Got:      $actual_hash"
+        return 1
+    fi
 }
 
 select_proxmox_product_and_version() {
@@ -363,8 +421,22 @@ select_proxmox_product_and_version() {
 
     print_logo
     echo "Retrieving available versions for $PRODUCT_NAME..."
-    AVAILABLE_ISOS=$(curl -s 'http://download.proxmox.com/iso/' | grep -oP "$GREP_PATTERN" | sort -V | tac | uniq)
-    IFS=$'\n' read -r -d '' -a iso_array <<< "$AVAILABLE_ISOS"
+    local iso_page=""
+    if ! iso_page=$(curl -sf 'https://download.proxmox.com/iso/'); then
+        echo "Error: Failed to retrieve ISO list from download.proxmox.com."
+        echo "Please check your network connection and try again."
+        return
+    fi
+    if [ -z "$iso_page" ]; then
+        echo "Error: Empty response from download.proxmox.com."
+        return
+    fi
+    AVAILABLE_ISOS=$(echo "$iso_page" | grep -oP "$GREP_PATTERN" | sort -V | tac | uniq || true)
+    if [ -z "$AVAILABLE_ISOS" ]; then
+        echo "Error: No ISO versions found for $PRODUCT_NAME."
+        return
+    fi
+    IFS=$'\n' read -r -d '' -a iso_array <<< "$AVAILABLE_ISOS" || true
     echo "Please select the version to install (default is the latest version):"
     for i in "${!iso_array[@]}"; do
         echo "$((i+1))) ${iso_array[i]}"
@@ -372,8 +444,8 @@ select_proxmox_product_and_version() {
     echo "$(( ${#iso_array[@]} + 1 )) Return to product selection"
     echo "$(( ${#iso_array[@]} + 2 )) Return to main menu"
 
-    read -t 30 -p "Enter number (1-$((${#iso_array[@]} + 2))) or wait for auto-selection: " version_choice
-    if [ -z "$version_choice" ]; then
+    read -t 30 -p "Enter number (1-$((${#iso_array[@]} + 2))) or wait for auto-selection: " version_choice || true
+    if [ -z "${version_choice:-}" ]; then
         version_choice=1
         echo "Auto-selected the latest version due to timeout."
     fi
@@ -387,15 +459,19 @@ select_proxmox_product_and_version() {
         return
     elif [[ "$version_choice" =~ ^[0-9]+$ ]] && [ "$version_choice" -ge 1 ] && [ "$version_choice" -le "${#iso_array[@]}" ]; then
         selected_iso="${iso_array[$((version_choice-1))]}"
-        ISO_URL="http://download.proxmox.com/iso/$selected_iso"
-        echo "Downloading $ISO_URL..."
-        curl $ISO_URL -o /tmp/proxmox.iso --progress-bar
     else
         echo "Invalid selection, using the latest version."
         selected_iso="${iso_array[0]}"
-        ISO_URL="http://download.proxmox.com/iso/$selected_iso"
-        echo "Downloading $ISO_URL..."
-        curl $ISO_URL -o /tmp/proxmox.iso --progress-bar
+    fi
+
+    ISO_URL="https://download.proxmox.com/iso/$selected_iso"
+    echo "Downloading $ISO_URL..."
+    curl "$ISO_URL" -o /tmp/proxmox.iso --progress-bar
+    if ! verify_iso_checksum "$selected_iso"; then
+        echo "SHA256 checksum verification FAILED. The downloaded ISO may be corrupted or tampered with."
+        echo "Please try downloading again or verify manually."
+        rm -f /tmp/proxmox.iso
+        return
     fi
     print_logo
     run_qemu "install"
