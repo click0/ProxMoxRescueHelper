@@ -322,6 +322,34 @@ run_qemu() {
     fi   
 }
 
+verify_iso_checksum() {
+    local iso_name="$1"
+    echo "Downloading SHA256SUMS for verification..."
+    if ! curl -sf "https://download.proxmox.com/iso/SHA256SUMS" -o /tmp/proxmox_sha256sums; then
+        echo "Warning: Could not download SHA256SUMS file. Skipping verification."
+        return 0
+    fi
+    local expected_hash
+    expected_hash=$(grep "$iso_name" /tmp/proxmox_sha256sums | awk '{print $1}')
+    if [ -z "$expected_hash" ]; then
+        echo "Warning: No checksum found for $iso_name in SHA256SUMS. Skipping verification."
+        rm -f /tmp/proxmox_sha256sums
+        return 0
+    fi
+    echo "Verifying SHA256 checksum..."
+    local actual_hash
+    actual_hash=$(sha256sum /tmp/proxmox.iso | awk '{print $1}')
+    rm -f /tmp/proxmox_sha256sums
+    if [ "$expected_hash" = "$actual_hash" ]; then
+        echo "SHA256 checksum verified successfully."
+        return 0
+    else
+        echo "Expected: $expected_hash"
+        echo "Got:      $actual_hash"
+        return 1
+    fi
+}
+
 select_proxmox_product_and_version() {
     if [ -n "$PRODUCT_CHOICE" ]; then
         echo "Product has been already selected: $PRODUCT_CHOICE"
@@ -363,7 +391,7 @@ select_proxmox_product_and_version() {
 
     print_logo
     echo "Retrieving available versions for $PRODUCT_NAME..."
-    AVAILABLE_ISOS=$(curl -s 'http://download.proxmox.com/iso/' | grep -oP "$GREP_PATTERN" | sort -V | tac | uniq)
+    AVAILABLE_ISOS=$(curl -s 'https://download.proxmox.com/iso/' | grep -oP "$GREP_PATTERN" | sort -V | tac | uniq)
     IFS=$'\n' read -r -d '' -a iso_array <<< "$AVAILABLE_ISOS"
     echo "Please select the version to install (default is the latest version):"
     for i in "${!iso_array[@]}"; do
@@ -387,15 +415,19 @@ select_proxmox_product_and_version() {
         return
     elif [[ "$version_choice" =~ ^[0-9]+$ ]] && [ "$version_choice" -ge 1 ] && [ "$version_choice" -le "${#iso_array[@]}" ]; then
         selected_iso="${iso_array[$((version_choice-1))]}"
-        ISO_URL="http://download.proxmox.com/iso/$selected_iso"
-        echo "Downloading $ISO_URL..."
-        curl $ISO_URL -o /tmp/proxmox.iso --progress-bar
     else
         echo "Invalid selection, using the latest version."
         selected_iso="${iso_array[0]}"
-        ISO_URL="http://download.proxmox.com/iso/$selected_iso"
-        echo "Downloading $ISO_URL..."
-        curl $ISO_URL -o /tmp/proxmox.iso --progress-bar
+    fi
+
+    ISO_URL="https://download.proxmox.com/iso/$selected_iso"
+    echo "Downloading $ISO_URL..."
+    curl "$ISO_URL" -o /tmp/proxmox.iso --progress-bar
+    if ! verify_iso_checksum "$selected_iso"; then
+        echo "SHA256 checksum verification FAILED. The downloaded ISO may be corrupted or tampered with."
+        echo "Please try downloading again or verify manually."
+        rm -f /tmp/proxmox.iso
+        return
     fi
     print_logo
     run_qemu "install"
