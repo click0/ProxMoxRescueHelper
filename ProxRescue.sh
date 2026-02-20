@@ -20,7 +20,9 @@ set -euo pipefail
 # Этот скрипт предназначен для установки продуктов Proxmox в режиме восстановления на серверах Hetzner.
 # ============================================================================================
 
+# shellcheck disable=SC2034
 VERSION_SCRIPT="0.65"
+# shellcheck disable=SC2034
 SCRIPT_TYPE="self-contained"
 
 logo='
@@ -289,13 +291,13 @@ run_qemu() {
         done
     fi
 
-    local QEMU_COMMON_ARGS=(-daemonize -enable-kvm -m "$QEMU_MEMORY" -vnc :0,password=on -monitor telnet:127.0.0.1:4444,server,nowait)
+    local QEMU_COMMON_ARGS=(-daemonize -enable-kvm -m "$QEMU_MEMORY" -vnc ":0,password=on" -monitor "telnet:127.0.0.1:4444,server,nowait")
 
     if [ "$USE_UEFI" = "true" ]; then
         QEMU_COMMON_ARGS=(-bios /usr/share/ovmf/OVMF.fd "${QEMU_COMMON_ARGS[@]}")
     fi
     if [ "$task" = "install" ]; then
-        local QEMU_CDROM_ARGS=(-drive file=/tmp/proxmox.iso,index=0,media=cdrom -boot d)
+        local QEMU_CDROM_ARGS=(-drive "file=/tmp/proxmox.iso,index=0,media=cdrom" -boot d)
         qemu-system-x86_64 "${QEMU_COMMON_ARGS[@]}" "${QEMU_DISK_ARGS[@]}" "${QEMU_CDROM_ARGS[@]}"
         echo -e "\nQemu running...."
         sleep 2
@@ -329,7 +331,7 @@ run_qemu() {
             fi
         done
     elif [ "$task" = "settings" ]; then
-        local QEMU_NETWORK_SETTINGS=(-net user,hostfwd=tcp::2222-:22 -net nic)
+        local QEMU_NETWORK_SETTINGS=(-net "user,hostfwd=tcp::2222-:22" -net nic)
         qemu-system-x86_64 "${QEMU_COMMON_ARGS[@]}" "${QEMU_DISK_ARGS[@]}" "${QEMU_NETWORK_SETTINGS[@]}"
     elif [ "$task" = "runsystem" ]; then
         qemu-system-x86_64 "${QEMU_COMMON_ARGS[@]}" "${QEMU_DISK_ARGS[@]}" &
