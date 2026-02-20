@@ -509,50 +509,34 @@ check_and_install_packages
 install_novnc
 clear_list
 
-declare -A options=(
-    [1]="Install Proxmox (VE, BS, MG)"
-    [2]="Install Proxmox (VE, BS, MG) with UEFI"
-    [3]="Run installed System in QEMU"
-    [4]="Run installed System in QEMU with UEFI"
-    [5]="Change VNC Password"
-    [6]="Reboot"
-    [7]="Exit"
-    [8]="Manually select disks for QEMU"
-)
-
-declare -A actions=(
-    [1]="select_proxmox_product_and_version"
-    [2]="USE_UEFI=true; select_proxmox_product_and_version"
-    [3]="runInstalledSystem"
-    [4]="USE_UEFI=true; runInstalledSystem"
-    [5]="changeVncPassword"
-    [6]="reboot_server"
-    [7]="exitScript"
-    [8]="select_disks"
-)
-
-ordered_keys=("1" "2" "3" "4" "5" "6" "7" "8")
-
 show_menu() {
-    echo "Welcome to Proxmox products installer in Rescue Mode for Hetzner" 
+    echo "Welcome to Proxmox products installer in Rescue Mode for Hetzner"
     echo "================================================================"
     echo "Please choose an action:"
-    for key in "${ordered_keys[@]}"; do
-        echo "$key) ${options[$key]}"
-    done
+    echo "1) Install Proxmox (VE, BS, MG)"
+    echo "2) Install Proxmox (VE, BS, MG) with UEFI"
+    echo "3) Run installed System in QEMU"
+    echo "4) Run installed System in QEMU with UEFI"
+    echo "5) Change VNC Password"
+    echo "6) Reboot"
+    echo "7) Exit"
+    echo "8) Manually select disks for QEMU"
 
     while true; do
-        read -p "Enter choice: " choice
-        action=${actions[$choice]}
-        if [[ -n "$action" ]]; then
-            eval $action
-            if [[ "$choice" != "6" && "$choice" != "7" ]]; then
-                show_menu
-            fi
-            break
-        else
-            echo "Invalid selection. Please, try again."
-        fi
+        read -r -p "Enter choice: " choice
+        case "$choice" in
+            1) select_proxmox_product_and_version ;;
+            2) USE_UEFI=true; select_proxmox_product_and_version ;;
+            3) runInstalledSystem ;;
+            4) USE_UEFI=true; runInstalledSystem ;;
+            5) changeVncPassword ;;
+            6) reboot_server; return ;;
+            7) exitScript; return ;;
+            8) select_disks ;;
+            *) echo "Invalid selection. Please, try again."; continue ;;
+        esac
+        show_menu
+        break
     done
 }
 
