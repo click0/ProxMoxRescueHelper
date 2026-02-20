@@ -186,8 +186,11 @@ check_and_install_packages() {
         echo "Installing required packages..."
         apt update -qq || { echo "Error: apt update failed."; exit 1; }
         for package in "${missing_packages[@]}"; do
-            echo "Install package: $package"
-            apt install -y "$package" -qq
+            echo "Installing package: $package"
+            if ! apt install -y "$package" -qq; then
+                echo "Error: Failed to install $package"
+                exit 1
+            fi
         done
         clear
         echo "$logo"
@@ -201,12 +204,12 @@ install_novnc() {
         echo "noVNC not found. Cloning noVNC from GitHub..."
         if ! git clone https://github.com/novnc/noVNC.git; then
             echo "Error: Failed to clone noVNC repository."
-            exit 1
+            return 1
         fi
         echo "Cloning websockify for noVNC..."
         if ! git clone https://github.com/novnc/websockify noVNC/utils/websockify; then
             echo "Error: Failed to clone websockify repository."
-            exit 1
+            return 1
         fi
         echo "Renaming vnc.html to index.html..."
         cp noVNC/vnc.html noVNC/index.html        
@@ -396,6 +399,7 @@ run_qemu() {
 
 verify_iso_checksum() {
     local iso_name="$1"
+    local iso_path="${2:-/tmp/proxmox.iso}"
     echo "Downloading SHA256SUMS for verification..."
     if ! curl -sf "https://download.proxmox.com/iso/SHA256SUMS" -o /tmp/proxmox_sha256sums; then
         echo "Warning: Could not download SHA256SUMS file. Skipping verification."
@@ -410,7 +414,7 @@ verify_iso_checksum() {
     fi
     echo "Verifying SHA256 checksum..."
     local actual_hash
-    actual_hash=$(sha256sum /tmp/proxmox.iso | awk '{print $1}')
+    actual_hash=$(sha256sum "$iso_path" | awk '{print $1}')
     rm -f /tmp/proxmox_sha256sums
     if [ "$expected_hash" = "$actual_hash" ]; then
         echo "SHA256 checksum verified successfully."
@@ -507,17 +511,20 @@ select_proxmox_product_and_version() {
     fi
 
     ISO_URL="https://download.proxmox.com/iso/$selected_iso"
+    local tmp_iso="/tmp/proxmox_download_$$.iso"
     echo "Downloading $ISO_URL..."
-    if ! curl -f "$ISO_URL" -o /tmp/proxmox.iso --progress-bar; then
+    if ! curl -f "$ISO_URL" -o "$tmp_iso" --progress-bar; then
         echo "Error: Failed to download ISO from $ISO_URL"
+        rm -f "$tmp_iso"
         return
     fi
-    if ! verify_iso_checksum "$selected_iso"; then
+    if ! verify_iso_checksum "$selected_iso" "$tmp_iso"; then
         echo "SHA256 checksum verification FAILED. The downloaded ISO may be corrupted or tampered with."
         echo "Please try downloading again or verify manually."
-        rm -f /tmp/proxmox.iso
+        rm -f "$tmp_iso"
         return
     fi
+    mv "$tmp_iso" /tmp/proxmox.iso
     print_logo
     run_qemu "install"
 }
