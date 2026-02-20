@@ -128,17 +128,19 @@ print_logo() {
 }
 
 get_network_info() {
-    local iface_candidates
-    iface_candidates=$(ls /sys/class/net | grep -E '^(eth|ens|enp)' || true)
+    local iface_candidates=()
+    local entry
+    for entry in /sys/class/net/eth* /sys/class/net/ens* /sys/class/net/enp*; do
+        [ -e "$entry" ] && iface_candidates+=("$(basename "$entry")")
+    done
 
-    if [ -z "$iface_candidates" ]; then
+    if [ ${#iface_candidates[@]} -eq 0 ]; then
         echo "No valid network interface found."
         exit 1
     fi
 
     # Take the first matching interface if multiple are found
-    local first_iface
-    first_iface=$(echo "$iface_candidates" | head -n 1)
+    local first_iface="${iface_candidates[0]}"
 
     INTERFACE_NAME=$(udevadm info -q property "/sys/class/net/${first_iface}" | grep "ID_NET_NAME_PATH=" | cut -d'=' -f2 || true)
     if [ -z "$INTERFACE_NAME" ]; then
@@ -306,19 +308,20 @@ run_qemu() {
         ./noVNC/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen "$IP_ADDRESS:$NOVNC_PORT" > /dev/null 2>&1 &
         NOVNC_PID=$!
         while true; do
+            # pgrep is used here because qemu runs with -daemonize (no direct PID)
             if ! pgrep -f "qemu-system-x86_64" > /dev/null; then
                 echo "QEMU process has stopped unexpectedly."
-                kill $NOVNC_PID 2>/dev/null || true
+                kill "$NOVNC_PID" 2>/dev/null || true
                 echo "noVNC stopped."
                 reboot_server
                 break
             fi
             confirmation=""
-            read -t 5 -p "Installation in progress... Enter 'yes' when complete: " confirmation || true
+            read -r -t 5 -p "Installation in progress... Enter 'yes' when complete: " confirmation || true
             if [ "$confirmation" = "yes" ]; then
                 echo "QEMU shutting down...."
                 printf "quit\n" | nc 127.0.0.1 4444 || true
-                kill $NOVNC_PID 2>/dev/null || true
+                kill "$NOVNC_PID" 2>/dev/null || true
                 echo "noVNC stopped."
                 print_logo
                 configure_network
@@ -342,19 +345,19 @@ run_qemu() {
         ./noVNC/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen "$IP_ADDRESS:$NOVNC_PORT" > /dev/null 2>&1 &
         NOVNC_PID=$!
         while true; do
-            if ! pgrep -f "qemu-system-x86_64" > /dev/null; then
+            if ! kill -0 "$QEMU_PID" 2>/dev/null; then
                 echo "QEMU process has stopped unexpectedly."
-                kill $NOVNC_PID 2>/dev/null || true
+                kill "$NOVNC_PID" 2>/dev/null || true
                 echo "noVNC stopped."
                 reboot_server
                 break
             fi
             confirmation=""
-            read -t 5 -p "System running... Enter 'shutdown' to stop QEMU: " confirmation || true
+            read -r -t 5 -p "System running... Enter 'shutdown' to stop QEMU: " confirmation || true
             if [ "$confirmation" = "shutdown" ]; then
                 echo "QEMU shutting down manually..."
                 printf "system_powerdown\n" | nc 127.0.0.1 4444 || true
-                kill $NOVNC_PID 2>/dev/null || true
+                kill "$NOVNC_PID" 2>/dev/null || true
                 echo "noVNC stopped."
                 reboot_server
                 break
@@ -455,7 +458,7 @@ select_proxmox_product_and_version() {
     echo "$(( ${#iso_array[@]} + 1 )) Return to product selection"
     echo "$(( ${#iso_array[@]} + 2 )) Return to main menu"
 
-    read -t 30 -p "Enter number (1-$((${#iso_array[@]} + 2))) or wait for auto-selection: " version_choice || true
+    read -r -t 30 -p "Enter number (1-$((${#iso_array[@]} + 2))) or wait for auto-selection: " version_choice || true
     if [ -z "${version_choice:-}" ]; then
         version_choice=1
         echo "Auto-selected the latest version due to timeout."
@@ -545,7 +548,7 @@ show_menu() {
             4) USE_UEFI=true; runInstalledSystem ;;
             5) changeVncPassword ;;
             6) reboot_server; return ;;
-            7) exitScript; return ;;
+            7) exitScript ;;
             8) select_disks ;;
             *) echo "Invalid selection. Please, try again."; continue ;;
         esac
