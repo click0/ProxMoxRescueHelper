@@ -397,7 +397,18 @@ select_proxmox_product_and_version() {
 
     print_logo
     echo "Retrieving available versions for $PRODUCT_NAME..."
-    AVAILABLE_ISOS=$(curl -s 'https://download.proxmox.com/iso/' | grep -oP "$GREP_PATTERN" | sort -V | tac | uniq)
+    local iso_page
+    iso_page=$(curl -sf 'https://download.proxmox.com/iso/')
+    if [ $? -ne 0 ] || [ -z "$iso_page" ]; then
+        echo "Error: Failed to retrieve ISO list from download.proxmox.com."
+        echo "Please check your network connection and try again."
+        return
+    fi
+    AVAILABLE_ISOS=$(echo "$iso_page" | grep -oP "$GREP_PATTERN" | sort -V | tac | uniq)
+    if [ -z "$AVAILABLE_ISOS" ]; then
+        echo "Error: No ISO versions found for $PRODUCT_NAME."
+        return
+    fi
     IFS=$'\n' read -r -d '' -a iso_array <<< "$AVAILABLE_ISOS"
     echo "Please select the version to install (default is the latest version):"
     for i in "${!iso_array[@]}"; do
