@@ -116,7 +116,7 @@ done
 clear_list() {
     pkill -f novnc_proxy || true
     echo "All noVNC sessions have been terminated."
-    ssh-keygen -R 127.0.0.1:2222 || true
+    ssh-keygen -R "[127.0.0.1]:2222" || true
     echo "SSH key cache cleared for 127.0.0.1 port 2222."
     printf "quit\n" | nc 127.0.0.1 4444 || true
     echo "Sent shutdown command to QEMU."
@@ -304,7 +304,7 @@ run_qemu() {
         echo "Use VNC client or Use Web Browser for connect to your server."
         echo -e "Ip for vnc connect:  $IP_ADDRESS\n"
         echo "For use NoVNC open in browser http://$IP_ADDRESS:$NOVNC_PORT"
-        echo -e "\nYou password for connect: \033[1m$VNC_PASSWORD\033[0m\n"
+        echo -e "\nYour password for connect: \033[1m$VNC_PASSWORD\033[0m\n"
         ./noVNC/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen "$IP_ADDRESS:$NOVNC_PORT" > /dev/null 2>&1 &
         NOVNC_PID=$!
         while true; do
@@ -341,7 +341,7 @@ run_qemu() {
         echo "Use VNC client or Use Web Browser for connect to your server."
         echo -e "Ip for vnc connect:  $IP_ADDRESS\n"
         echo "For use NoVNC open in browser http://$IP_ADDRESS:$NOVNC_PORT"
-        echo -e "\nYou password for connect: \033[1m$VNC_PASSWORD\033[0m\n"
+        echo -e "\nYour password for connect: \033[1m$VNC_PASSWORD\033[0m\n"
         ./noVNC/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen "$IP_ADDRESS:$NOVNC_PORT" > /dev/null 2>&1 &
         NOVNC_PID=$!
         while true; do
