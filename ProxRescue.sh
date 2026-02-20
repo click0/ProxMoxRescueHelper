@@ -79,7 +79,12 @@ while [[ $# -gt 0 ]]; do
             shift 
             ;;
         -vport)
-            NOVNC_PORT="$2"
+            if [[ "$2" =~ ^[0-9]+$ ]] && [ "$2" -ge 1 ] && [ "$2" -le 65535 ]; then
+                NOVNC_PORT="$2"
+            else
+                echo "Error: Invalid port number: $2"
+                exit 1
+            fi
             shift
             shift
             ;;    
@@ -96,7 +101,12 @@ while [[ $# -gt 0 ]]; do
             shift 
             ;;
         -dns)
-            NAME_SERVER="$2"
+            if [[ "$2" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+                NAME_SERVER="$2"
+            else
+                echo "Warning: Invalid DNS server IP address: $2. Using fallback 1.0.0.1"
+                NAME_SERVER="1.0.0.1"
+            fi
             shift
             shift
             ;;
@@ -402,15 +412,15 @@ select_proxmox_product_and_version() {
 
         case "$PRODUCT_CHOICE" in
             "Proxmox Virtual Environment")
-                GREP_PATTERN='proxmox-ve_([0-9]+.[0-9]+-[0-9]+).iso'
+                GREP_PATTERN='proxmox-ve_([0-9]+\.[0-9]+-[0-9]+)\.iso'
                 PRODUCT_NAME="Proxmox Virtual Environment"
                 ;;
             "Proxmox Backup Server")
-                GREP_PATTERN='proxmox-backup-server_([0-9]+.[0-9]+-[0-9]+).iso'
+                GREP_PATTERN='proxmox-backup-server_([0-9]+\.[0-9]+-[0-9]+)\.iso'
                 PRODUCT_NAME="Proxmox Backup Server"
                 ;;
             "Proxmox Mail Gateway")
-                GREP_PATTERN='proxmox-mail-gateway_([0-9]+.[0-9]+-[0-9]+).iso'
+                GREP_PATTERN='proxmox-mail-gateway_([0-9]+\.[0-9]+-[0-9]+)\.iso'
                 PRODUCT_NAME="Proxmox Mail Gateway"
                 ;;
         esac
@@ -426,9 +436,9 @@ select_proxmox_product_and_version() {
             read -r -p "Enter number (1-4): " product_choice
 
             case "$product_choice" in
-                1) GREP_PATTERN='proxmox-ve_([0-9]+.[0-9]+-[0-9]+).iso'; PRODUCT_NAME="Proxmox Virtual Environment"; valid_choice=1 ;;
-                2) GREP_PATTERN='proxmox-backup-server_([0-9]+.[0-9]+-[0-9]+).iso'; PRODUCT_NAME="Proxmox Backup Server"; valid_choice=1 ;;
-                3) GREP_PATTERN='proxmox-mail-gateway_([0-9]+.[0-9]+-[0-9]+).iso'; PRODUCT_NAME="Proxmox Mail Gateway"; valid_choice=1 ;;
+                1) GREP_PATTERN='proxmox-ve_([0-9]+\.[0-9]+-[0-9]+)\.iso'; PRODUCT_NAME="Proxmox Virtual Environment"; valid_choice=1 ;;
+                2) GREP_PATTERN='proxmox-backup-server_([0-9]+\.[0-9]+-[0-9]+)\.iso'; PRODUCT_NAME="Proxmox Backup Server"; valid_choice=1 ;;
+                3) GREP_PATTERN='proxmox-mail-gateway_([0-9]+\.[0-9]+-[0-9]+)\.iso'; PRODUCT_NAME="Proxmox Mail Gateway"; valid_choice=1 ;;
                 4) echo "Returning to main menu..."; return ;;
                 *) echo "Invalid selection. Please, try again."; ;;
             esac
