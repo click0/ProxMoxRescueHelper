@@ -228,10 +228,9 @@ select_disks() {
     selected_disks_output=$(dialog --checklist "Select disks to use for QEMU:" 15 50 8 "${disk_options[@]}" 3>&1 1>&2 2>&3 3>&-)    
     if [ $? -eq 0 ] && [ -n "$selected_disks_output" ]; then
         QEMU_DISK_ARGS=""
-        local disk_index=0        
-        IFS=' ' read -ra selected_disks <<< "$selected_disks_output"
-        for disk_name in "${selected_disks[@]}"; do
-            QEMU_DISK_ARGS+="-drive file=/dev/$disk_name,format=raw,if=virtio,index=$disk_index,media=disk "
+        local disk_index=0
+        for disk_name in $selected_disks_output; do
+            QEMU_DISK_ARGS="$QEMU_DISK_ARGS -drive file=/dev/${disk_name},format=raw,if=virtio,index=${disk_index},media=disk"
             disk_index=$((disk_index + 1))
         done
     else
@@ -243,11 +242,12 @@ select_disks() {
 run_qemu() {
     get_network_info
     local task=$1
-    if [ -z "$QEMU_DISK_ARGS" ]; then        
-        local disks=$(lsblk -dn -o NAME,TYPE -e 1,7,11,14,15 | grep -E 'nvme|sd|vd' | awk '$2 == "disk" {print $1}')
+    if [ -z "$QEMU_DISK_ARGS" ]; then
+        local disks
+        disks=$(lsblk -dn -o NAME,TYPE -e 1,7,11,14,15 | grep -E 'nvme|sd|vd' | awk '$2 == "disk" {print $1}')
         local disk_index=0
         for disk in $disks; do
-            QEMU_DISK_ARGS+=" -drive file=/dev/$disk,format=raw,if=virtio,index=$disk_index,media=disk"
+            QEMU_DISK_ARGS="$QEMU_DISK_ARGS -drive file=/dev/${disk},format=raw,if=virtio,index=${disk_index},media=disk"
             disk_index=$((disk_index + 1))
         done
     fi
@@ -259,6 +259,7 @@ run_qemu() {
     fi
     if [ "$task" == "install" ]; then
         QEMU_CDROM_ARGS="-drive file=/tmp/proxmox.iso,index=0,media=cdrom -boot d"
+        # Word splitting on unquoted vars is intentional here — each flag must be a separate argument
         qemu-system-x86_64 $QEMU_COMMON_ARGS $QEMU_DISK_ARGS $QEMU_CDROM_ARGS
         echo -e "\nQemu running...."
         sleep 2
