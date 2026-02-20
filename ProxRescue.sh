@@ -279,9 +279,8 @@ run_qemu() {
                 reboot_server
                 break
             fi
-            echo -ne "Installation in progress... If installation is complete, enter \"yes\" to continue: \r"
-            read -t 5 -n 3 confirmation
-            if [[ "$confirmation" == "yes" ]]; then
+            read -t 5 -p "Installation in progress... Enter 'yes' when complete: " confirmation || true
+            if [ "$confirmation" = "yes" ]; then
                 echo "QEMU shutting down...."
                 printf "quit\n" | nc 127.0.0.1 4444
                 kill $NOVNC_PID  # завершение novnc_proxy
@@ -315,9 +314,8 @@ run_qemu() {
                 reboot_server
                 break
             fi
-            echo -ne "System running... Enter 'shutdown' to shut down QEMU: \r"
-            read -t 5 -n 8 confirmation
-            if [[ "$confirmation" == "shutdown" ]]; then
+            read -t 5 -p "System running... Enter 'shutdown' to stop QEMU: " confirmation || true
+            if [ "$confirmation" = "shutdown" ]; then
                 echo "QEMU shutting down manually..."
                 printf "system_powerdown\n" | nc 127.0.0.1 4444
                 kill $NOVNC_PID 2>/dev/null
