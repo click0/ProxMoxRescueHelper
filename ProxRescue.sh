@@ -20,7 +20,9 @@ set -euo pipefail
 # Этот скрипт предназначен для установки продуктов Proxmox в режиме восстановления на серверах Hetzner.
 # ============================================================================================
 
-VERSION_SCRIPT="0.65"
+# shellcheck disable=SC2034
+VERSION_SCRIPT="0.70"
+# shellcheck disable=SC2034
 SCRIPT_TYPE="self-contained"
 
 logo='
@@ -39,7 +41,7 @@ USE_UEFI=""
 NAME_SERVER="1.1.1.1"
 
 QEMU_MEMORY="3000"	# in megabytes
-QEMU_DISK_ARGS=""
+QEMU_DISK_ARGS=()
 
 if [ -z "$VNC_PASSWORD" ]; then
     if [ "$VNC_PASSWORD_LENGTH" -lt 8 ] || [ "$VNC_PASSWORD_LENGTH" -gt 20 ]; then
@@ -116,7 +118,7 @@ done
 clear_list() {
     pkill -f novnc_proxy || true
     echo "All noVNC sessions have been terminated."
-    ssh-keygen -R 127.0.0.1:2222 || true
+    ssh-keygen -R "[127.0.0.1]:2222" || true
     echo "SSH key cache cleared for 127.0.0.1 port 2222."
     printf "quit\n" | nc 127.0.0.1 4444 || true
     echo "Sent shutdown command to QEMU."
@@ -128,17 +130,19 @@ print_logo() {
 }
 
 get_network_info() {
-    local iface_candidates
-    iface_candidates=$(ls /sys/class/net | grep -E '^(eth|ens|enp)' || true)
+    local iface_candidates=()
+    local entry
+    for entry in /sys/class/net/eth* /sys/class/net/ens* /sys/class/net/enp*; do
+        [ -e "$entry" ] && iface_candidates+=("$(basename "$entry")")
+    done
 
-    if [ -z "$iface_candidates" ]; then
+    if [ ${#iface_candidates[@]} -eq 0 ]; then
         echo "No valid network interface found."
         exit 1
     fi
 
     # Take the first matching interface if multiple are found
-    local first_iface
-    first_iface=$(echo "$iface_candidates" | head -n 1)
+    local first_iface="${iface_candidates[0]}"
 
     INTERFACE_NAME=$(udevadm info -q property "/sys/class/net/${first_iface}" | grep "ID_NET_NAME_PATH=" | cut -d'=' -f2 || true)
     if [ -z "$INTERFACE_NAME" ]; then
@@ -262,10 +266,10 @@ select_disks() {
     local dialog_rc=0
     selected_disks_output=$(dialog --checklist "Select disks to use for QEMU:" 15 50 8 "${disk_options[@]}" 3>&1 1>&2 2>&3 3>&-) || dialog_rc=$?
     if [ "$dialog_rc" -eq 0 ] && [ -n "$selected_disks_output" ]; then
-        QEMU_DISK_ARGS=""
+        QEMU_DISK_ARGS=()
         local disk_index=0
         for disk_name in $selected_disks_output; do
-            QEMU_DISK_ARGS="$QEMU_DISK_ARGS -drive file=/dev/${disk_name},format=raw,if=virtio,index=${disk_index},media=disk"
+            QEMU_DISK_ARGS+=(-drive "file=/dev/${disk_name},format=raw,if=virtio,index=${disk_index},media=disk")
             disk_index=$((disk_index + 1))
         done
     else
@@ -277,25 +281,24 @@ select_disks() {
 run_qemu() {
     get_network_info
     local task=$1
-    if [ -z "$QEMU_DISK_ARGS" ]; then
+    if [ ${#QEMU_DISK_ARGS[@]} -eq 0 ]; then
         local disks
         disks=$(lsblk -dn -o NAME,TYPE -e 1,7,11,14,15 | grep -E 'nvme|sd|vd' | awk '$2 == "disk" {print $1}' || true)
         local disk_index=0
         for disk in $disks; do
-            QEMU_DISK_ARGS="$QEMU_DISK_ARGS -drive file=/dev/${disk},format=raw,if=virtio,index=${disk_index},media=disk"
+            QEMU_DISK_ARGS+=(-drive "file=/dev/${disk},format=raw,if=virtio,index=${disk_index},media=disk")
             disk_index=$((disk_index + 1))
         done
     fi
 
-    QEMU_COMMON_ARGS="-daemonize -enable-kvm -m $QEMU_MEMORY -vnc :0,password=on -monitor telnet:127.0.0.1:4444,server,nowait"
-        
+    local QEMU_COMMON_ARGS=(-daemonize -enable-kvm -m "$QEMU_MEMORY" -vnc ":0,password=on" -monitor "telnet:127.0.0.1:4444,server,nowait")
+
     if [ "$USE_UEFI" = "true" ]; then
-        QEMU_COMMON_ARGS="-bios /usr/share/ovmf/OVMF.fd $QEMU_COMMON_ARGS"
+        QEMU_COMMON_ARGS=(-bios /usr/share/ovmf/OVMF.fd "${QEMU_COMMON_ARGS[@]}")
     fi
     if [ "$task" = "install" ]; then
-        QEMU_CDROM_ARGS="-drive file=/tmp/proxmox.iso,index=0,media=cdrom -boot d"
-        # Word splitting on unquoted vars is intentional here — each flag must be a separate argument
-        qemu-system-x86_64 $QEMU_COMMON_ARGS $QEMU_DISK_ARGS $QEMU_CDROM_ARGS
+        local QEMU_CDROM_ARGS=(-drive "file=/tmp/proxmox.iso,index=0,media=cdrom" -boot d)
+        qemu-system-x86_64 "${QEMU_COMMON_ARGS[@]}" "${QEMU_DISK_ARGS[@]}" "${QEMU_CDROM_ARGS[@]}"
         echo -e "\nQemu running...."
         sleep 2
         echo "change vnc password $VNC_PASSWORD" | nc -q 1 127.0.0.1 4444 || true
@@ -303,23 +306,24 @@ run_qemu() {
         echo "Use VNC client or Use Web Browser for connect to your server."
         echo -e "Ip for vnc connect:  $IP_ADDRESS\n"
         echo "For use NoVNC open in browser http://$IP_ADDRESS:$NOVNC_PORT"
-        echo -e "\nYou password for connect: \033[1m$VNC_PASSWORD\033[0m\n"
+        echo -e "\nYour password for connect: \033[1m$VNC_PASSWORD\033[0m\n"
         ./noVNC/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen "$IP_ADDRESS:$NOVNC_PORT" > /dev/null 2>&1 &
         NOVNC_PID=$!
         while true; do
+            # pgrep is used here because qemu runs with -daemonize (no direct PID)
             if ! pgrep -f "qemu-system-x86_64" > /dev/null; then
                 echo "QEMU process has stopped unexpectedly."
-                kill $NOVNC_PID 2>/dev/null || true
+                kill "$NOVNC_PID" 2>/dev/null || true
                 echo "noVNC stopped."
                 reboot_server
                 break
             fi
             confirmation=""
-            read -t 5 -p "Installation in progress... Enter 'yes' when complete: " confirmation || true
+            read -r -t 5 -p "Installation in progress... Enter 'yes' when complete: " confirmation || true
             if [ "$confirmation" = "yes" ]; then
                 echo "QEMU shutting down...."
                 printf "quit\n" | nc 127.0.0.1 4444 || true
-                kill $NOVNC_PID 2>/dev/null || true
+                kill "$NOVNC_PID" 2>/dev/null || true
                 echo "noVNC stopped."
                 print_logo
                 configure_network
@@ -327,10 +331,10 @@ run_qemu() {
             fi
         done
     elif [ "$task" = "settings" ]; then
-        QEMU_NETWORK_SETTINGS="-net user,hostfwd=tcp::2222-:22 -net nic"
-        qemu-system-x86_64 $QEMU_COMMON_ARGS $QEMU_DISK_ARGS $QEMU_NETWORK_SETTINGS
+        local QEMU_NETWORK_SETTINGS=(-net "user,hostfwd=tcp::2222-:22" -net nic)
+        qemu-system-x86_64 "${QEMU_COMMON_ARGS[@]}" "${QEMU_DISK_ARGS[@]}" "${QEMU_NETWORK_SETTINGS[@]}"
     elif [ "$task" = "runsystem" ]; then
-        qemu-system-x86_64 $QEMU_COMMON_ARGS $QEMU_DISK_ARGS &
+        qemu-system-x86_64 "${QEMU_COMMON_ARGS[@]}" "${QEMU_DISK_ARGS[@]}" &
         QEMU_PID=$!
         echo -e "\nQemu running...."
         sleep 2
@@ -339,23 +343,23 @@ run_qemu() {
         echo "Use VNC client or Use Web Browser for connect to your server."
         echo -e "Ip for vnc connect:  $IP_ADDRESS\n"
         echo "For use NoVNC open in browser http://$IP_ADDRESS:$NOVNC_PORT"
-        echo -e "\nYou password for connect: \033[1m$VNC_PASSWORD\033[0m\n"
+        echo -e "\nYour password for connect: \033[1m$VNC_PASSWORD\033[0m\n"
         ./noVNC/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen "$IP_ADDRESS:$NOVNC_PORT" > /dev/null 2>&1 &
         NOVNC_PID=$!
         while true; do
-            if ! pgrep -f "qemu-system-x86_64" > /dev/null; then
+            if ! kill -0 "$QEMU_PID" 2>/dev/null; then
                 echo "QEMU process has stopped unexpectedly."
-                kill $NOVNC_PID 2>/dev/null || true
+                kill "$NOVNC_PID" 2>/dev/null || true
                 echo "noVNC stopped."
                 reboot_server
                 break
             fi
             confirmation=""
-            read -t 5 -p "System running... Enter 'shutdown' to stop QEMU: " confirmation || true
+            read -r -t 5 -p "System running... Enter 'shutdown' to stop QEMU: " confirmation || true
             if [ "$confirmation" = "shutdown" ]; then
                 echo "QEMU shutting down manually..."
                 printf "system_powerdown\n" | nc 127.0.0.1 4444 || true
-                kill $NOVNC_PID 2>/dev/null || true
+                kill "$NOVNC_PID" 2>/dev/null || true
                 echo "noVNC stopped."
                 reboot_server
                 break
@@ -456,7 +460,7 @@ select_proxmox_product_and_version() {
     echo "$(( ${#iso_array[@]} + 1 )) Return to product selection"
     echo "$(( ${#iso_array[@]} + 2 )) Return to main menu"
 
-    read -t 30 -p "Enter number (1-$((${#iso_array[@]} + 2))) or wait for auto-selection: " version_choice || true
+    read -r -t 30 -p "Enter number (1-$((${#iso_array[@]} + 2))) or wait for auto-selection: " version_choice || true
     if [ -z "${version_choice:-}" ]; then
         version_choice=1
         echo "Auto-selected the latest version due to timeout."
@@ -546,7 +550,7 @@ show_menu() {
             4) USE_UEFI=true; runInstalledSystem ;;
             5) changeVncPassword ;;
             6) reboot_server; return ;;
-            7) exitScript; return ;;
+            7) exitScript ;;
             8) select_disks ;;
             *) echo "Invalid selection. Please, try again."; continue ;;
         esac
