@@ -107,13 +107,14 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;    
         *)
-            shift 
+            echo "Warning: Unknown option: $1"
+            shift
             ;;
     esac
 done
 
 clear_list() {
-    pkill -f websockify || true
+    pkill -f novnc_proxy || true
     echo "All noVNC sessions have been terminated."
     ssh-keygen -R 127.0.0.1:2222 || true
     echo "SSH key cache cleared for 127.0.0.1 port 2222."
@@ -145,7 +146,7 @@ get_network_info() {
         INTERFACE_NAME="$first_iface"
     fi
 
-    IP_CIDR=$(ip addr show "$INTERFACE_NAME" | grep "inet\b" | awk '{print $2}' || true)
+    IP_CIDR=$(ip addr show "$INTERFACE_NAME" | grep "inet\b" | head -n 1 | awk '{print $2}' || true)
     GATEWAY=$(ip route | grep default | awk '{print $3}' || true)
     IP_ADDRESS=$(echo "$IP_CIDR" | cut -d'/' -f1)
     CIDR=$(echo "$IP_CIDR" | cut -d'/' -f2)
@@ -156,7 +157,7 @@ check_and_install_packages() {
     local required_packages=(curl sshpass dialog)
     local missing_packages=()
     for package in "${required_packages[@]}"; do
-        if ! dpkg -l "$package" 2>/dev/null | grep -qw "$package"; then
+        if ! dpkg -s "$package" >/dev/null 2>&1; then
             missing_packages+=("$package")
         fi
     done
@@ -165,7 +166,7 @@ check_and_install_packages() {
         echo "$logo"
     else
         echo "Installing required packages..."
-        apt update -qq
+        apt update -qq || { echo "Error: apt update failed."; exit 1; }
         for package in "${missing_packages[@]}"; do
             echo "Install package: $package"
             apt install -y "$package" -qq
@@ -180,9 +181,15 @@ install_novnc() {
     echo "Checking for noVNC installation..."
     if [ ! -d "noVNC" ]; then
         echo "noVNC not found. Cloning noVNC from GitHub..."
-        git clone https://github.com/novnc/noVNC.git
+        if ! git clone https://github.com/novnc/noVNC.git; then
+            echo "Error: Failed to clone noVNC repository."
+            exit 1
+        fi
         echo "Cloning websockify for noVNC..."
-        git clone https://github.com/novnc/websockify noVNC/utils/websockify        
+        if ! git clone https://github.com/novnc/websockify noVNC/utils/websockify; then
+            echo "Error: Failed to clone websockify repository."
+            exit 1
+        fi
         echo "Renaming vnc.html to index.html..."
         cp noVNC/vnc.html noVNC/index.html        
     else
@@ -228,7 +235,7 @@ EOF
         fi
     done
     local ssh_rc=0
-    sshpass -p "$ROOT_PASSWORD" ssh -o StrictHostKeyChecking=no -p 2222 root@127.0.0.1 "sed -i 's/nameserver.*/nameserver $NAME_SERVER/' /etc/resolv.conf" || ssh_rc=$?
+    sshpass -p "$ROOT_PASSWORD" ssh -o StrictHostKeyChecking=no -p 2222 root@127.0.0.1 "sed -i 's|nameserver.*|nameserver $NAME_SERVER|' /etc/resolv.conf" || ssh_rc=$?
     if [ "$ssh_rc" -ne 0 ]; then
         echo "Error in change resolv.conf."
     else
@@ -282,10 +289,10 @@ run_qemu() {
 
     QEMU_COMMON_ARGS="-daemonize -enable-kvm -m $QEMU_MEMORY -vnc :0,password=on -monitor telnet:127.0.0.1:4444,server,nowait"
         
-    if [ "$USE_UEFI" == "true" ]; then
+    if [ "$USE_UEFI" = "true" ]; then
         QEMU_COMMON_ARGS="-bios /usr/share/ovmf/OVMF.fd $QEMU_COMMON_ARGS"
     fi
-    if [ "$task" == "install" ]; then
+    if [ "$task" = "install" ]; then
         QEMU_CDROM_ARGS="-drive file=/tmp/proxmox.iso,index=0,media=cdrom -boot d"
         # Word splitting on unquoted vars is intentional here — each flag must be a separate argument
         qemu-system-x86_64 $QEMU_COMMON_ARGS $QEMU_DISK_ARGS $QEMU_CDROM_ARGS
@@ -319,10 +326,10 @@ run_qemu() {
                 break
             fi
         done
-    elif [ "$task" == "settings" ]; then
+    elif [ "$task" = "settings" ]; then
         QEMU_NETWORK_SETTINGS="-net user,hostfwd=tcp::2222-:22 -net nic"
         qemu-system-x86_64 $QEMU_COMMON_ARGS $QEMU_DISK_ARGS $QEMU_NETWORK_SETTINGS
-    elif [ "$task" == "runsystem" ]; then
+    elif [ "$task" = "runsystem" ]; then
         qemu-system-x86_64 $QEMU_COMMON_ARGS $QEMU_DISK_ARGS &
         QEMU_PID=$!
         echo -e "\nQemu running...."
@@ -471,7 +478,10 @@ select_proxmox_product_and_version() {
 
     ISO_URL="https://download.proxmox.com/iso/$selected_iso"
     echo "Downloading $ISO_URL..."
-    curl "$ISO_URL" -o /tmp/proxmox.iso --progress-bar
+    if ! curl -f "$ISO_URL" -o /tmp/proxmox.iso --progress-bar; then
+        echo "Error: Failed to download ISO from $ISO_URL"
+        return
+    fi
     if ! verify_iso_checksum "$selected_iso"; then
         echo "SHA256 checksum verification FAILED. The downloaded ISO may be corrupted or tampered with."
         echo "Please try downloading again or verify manually."
