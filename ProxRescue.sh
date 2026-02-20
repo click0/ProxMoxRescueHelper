@@ -161,6 +161,10 @@ get_network_info() {
     fi
 
     IP_CIDR=$(ip addr show "$INTERFACE_NAME" | grep "inet\b" | head -n 1 | awk '{print $2}' || true)
+    if [ -z "$IP_CIDR" ] || [[ ! "$IP_CIDR" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$ ]]; then
+        echo "Error: No valid IP configuration found for interface $INTERFACE_NAME"
+        exit 1
+    fi
     GATEWAY=$(ip route | grep default | awk '{print $3}' || true)
     IP_ADDRESS=$(echo "$IP_CIDR" | cut -d'/' -f1)
     CIDR=$(echo "$IP_CIDR" | cut -d'/' -f2)
@@ -289,6 +293,10 @@ select_disks() {
 }
 
 run_qemu() {
+    if ! command -v qemu-system-x86_64 &>/dev/null; then
+        echo "Error: qemu-system-x86_64 not found. Install: apt install qemu-system-x86"
+        return 1
+    fi
     get_network_info
     local task=$1
     if [ ${#QEMU_DISK_ARGS[@]} -eq 0 ]; then
@@ -299,11 +307,19 @@ run_qemu() {
             QEMU_DISK_ARGS+=(-drive "file=/dev/${disk},format=raw,if=virtio,index=${disk_index},media=disk")
             disk_index=$((disk_index + 1))
         done
+        if [ ${#QEMU_DISK_ARGS[@]} -eq 0 ]; then
+            echo "Error: No suitable disks found on the system."
+            return 1
+        fi
     fi
 
     local QEMU_COMMON_ARGS=(-daemonize -enable-kvm -m "$QEMU_MEMORY" -vnc ":0,password=on" -monitor "telnet:127.0.0.1:4444,server,nowait")
 
     if [ "$USE_UEFI" = "true" ]; then
+        if [ ! -f "/usr/share/ovmf/OVMF.fd" ]; then
+            echo "Error: OVMF firmware not found. Install: apt install ovmf"
+            return 1
+        fi
         QEMU_COMMON_ARGS=(-bios /usr/share/ovmf/OVMF.fd "${QEMU_COMMON_ARGS[@]}")
     fi
     if [ "$task" = "install" ]; then
