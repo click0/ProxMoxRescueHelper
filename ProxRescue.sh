@@ -54,6 +54,7 @@ show_help() {
     echo "  -mg                       Install Proxmox Mail Gateway."
     echo "  -vport                    Set noVNC port (default 8080)."
     echo "  -p, --password PASSWORD   Specify a password for the VNC connection."
+    echo "  -dns DNS_SERVER            Set DNS server (default 1.1.1.1)."
     echo "  -uefi                     Use UEFI for installation or system run."
     echo "  -h, --help                Show this help message and exit."
     echo ""
@@ -84,6 +85,11 @@ while [[ $# -gt 0 ]]; do
         -mg)
             PRODUCT_CHOICE="Proxmox Mail Gateway"
             shift 
+            ;;
+        -dns)
+            NAME_SERVER="$2"
+            shift
+            shift
             ;;
         -uefi)
             USE_UEFI="true"
