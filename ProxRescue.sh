@@ -198,7 +198,10 @@ install_novnc() {
 
 configure_network() {
     get_network_info
-    cat > /tmp/proxmox_network_config <<EOF
+    local tmp_netcfg
+    tmp_netcfg=$(mktemp /tmp/proxmox_network_config.XXXXXX)
+    trap 'rm -f "$tmp_netcfg"' RETURN
+    cat > "$tmp_netcfg" <<EOF
 auto lo
 iface lo inet loopback
 
@@ -217,7 +220,7 @@ EOF
     while true; do
         read -rs -p "To configure the network on your server, enter the root password you set when installing $PRODUCT_NAME: " ROOT_PASSWORD
         local scp_rc=0
-        sshpass -p "$ROOT_PASSWORD" scp -o StrictHostKeyChecking=no -P 2222 /tmp/proxmox_network_config root@127.0.0.1:/etc/network/interfaces || scp_rc=$?
+        sshpass -p "$ROOT_PASSWORD" scp -o StrictHostKeyChecking=no -P 2222 "$tmp_netcfg" root@127.0.0.1:/etc/network/interfaces || scp_rc=$?
         if [ "$scp_rc" -eq 5 ]; then
             echo "Authorization error. Please check your root password."
         else
