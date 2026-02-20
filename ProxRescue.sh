@@ -245,8 +245,10 @@ select_disks() {
     disk_list=$(lsblk -dn -o NAME,TYPE,SIZE -e 1,7,11,14,15 | grep -E 'nvme|sd|vd' | awk '$2 == "disk" {print $1 " " $3}' || true)
     local IFS=$'\n'
     for disk in $disk_list; do
-        local disk_name=$(echo $disk | awk '{print $1}')
-        local disk_size=$(echo $disk | awk '{print $2}')
+        local disk_name
+        disk_name=$(echo "$disk" | awk '{print $1}')
+        local disk_size
+        disk_size=$(echo "$disk" | awk '{print $2}')
         disk_options+=("$disk_name" "$disk_size" on)  # Все диски по умолчанию включены
     done
     local selected_disks_output=""
@@ -295,7 +297,7 @@ run_qemu() {
         echo -e "Ip for vnc connect:  $IP_ADDRESS\n"
         echo "For use NoVNC open in browser http://$IP_ADDRESS:$NOVNC_PORT"
         echo -e "\nYou password for connect: \033[1m$VNC_PASSWORD\033[0m\n"
-        ./noVNC/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen $IP_ADDRESS:$NOVNC_PORT > /dev/null 2>&1 &
+        ./noVNC/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen "$IP_ADDRESS:$NOVNC_PORT" > /dev/null 2>&1 &
         NOVNC_PID=$!
         while true; do
             if ! pgrep -f "qemu-system-x86_64" > /dev/null; then
@@ -331,7 +333,7 @@ run_qemu() {
         echo -e "Ip for vnc connect:  $IP_ADDRESS\n"
         echo "For use NoVNC open in browser http://$IP_ADDRESS:$NOVNC_PORT"
         echo -e "\nYou password for connect: \033[1m$VNC_PASSWORD\033[0m\n"
-        ./noVNC/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen $IP_ADDRESS:$NOVNC_PORT > /dev/null 2>&1 &
+        ./noVNC/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen "$IP_ADDRESS:$NOVNC_PORT" > /dev/null 2>&1 &
         NOVNC_PID=$!
         while true; do
             if ! pgrep -f "qemu-system-x86_64" > /dev/null; then
@@ -387,7 +389,7 @@ select_proxmox_product_and_version() {
     if [ -n "$PRODUCT_CHOICE" ]; then
         echo "Product has been already selected: $PRODUCT_CHOICE"
 
-        case $PRODUCT_CHOICE in
+        case "$PRODUCT_CHOICE" in
             "Proxmox Virtual Environment")
                 GREP_PATTERN='proxmox-ve_([0-9]+.[0-9]+-[0-9]+).iso'
                 PRODUCT_NAME="Proxmox Virtual Environment"
@@ -410,9 +412,9 @@ select_proxmox_product_and_version() {
             echo "2) Proxmox Backup Server"
             echo "3) Proxmox Mail Gateway"
             echo "4) Return to main menu"
-            read -p "Enter number (1-4): " product_choice
+            read -r -p "Enter number (1-4): " product_choice
 
-            case $product_choice in
+            case "$product_choice" in
                 1) GREP_PATTERN='proxmox-ve_([0-9]+.[0-9]+-[0-9]+).iso'; PRODUCT_NAME="Proxmox Virtual Environment"; valid_choice=1 ;;
                 2) GREP_PATTERN='proxmox-backup-server_([0-9]+.[0-9]+-[0-9]+).iso'; PRODUCT_NAME="Proxmox Backup Server"; valid_choice=1 ;;
                 3) GREP_PATTERN='proxmox-mail-gateway_([0-9]+.[0-9]+-[0-9]+).iso'; PRODUCT_NAME="Proxmox Mail Gateway"; valid_choice=1 ;;
