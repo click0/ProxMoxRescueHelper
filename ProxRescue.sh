@@ -21,7 +21,7 @@ set -euo pipefail
 # ============================================================================================
 
 # shellcheck disable=SC2034
-VERSION_SCRIPT="0.65"
+VERSION_SCRIPT="0.70"
 # shellcheck disable=SC2034
 SCRIPT_TYPE="self-contained"
 
