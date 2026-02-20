@@ -13,6 +13,7 @@ Before running the script, ensure that your system has the following packages in
 
     curl
     sshpass
+    dialog
     git
 
 Installation of Required Packages
@@ -28,6 +29,7 @@ Command Line Parameters
     -mg: Install Proxmox Mail Gateway.
     -vport: Set the port for noVNC (default 8080).
     -p, --password PASSWORD: Specify a password for the VNC connection.
+    -dns DNS_SERVER: Set DNS server (default 1.1.1.1).
     -uefi: Use UEFI for installation or system run.
     -h, --help: Show this help message and exit.
 
@@ -41,9 +43,9 @@ Examples
 
        ./ProxRescue.sh -bs -uefi -vport 8081
 
-    Run the installed system in UEFI mode:
+    Install Proxmox VE with a custom DNS server:
 
-       ./ProxRescue.sh -run -uefi
+       ./ProxRescue.sh -ve -dns 8.8.8.8
 
 Main Menu
 
@@ -56,12 +58,14 @@ When running the script without parameters, the main menu will be displayed:
     5. Change VNC Password
     6. Reboot
     7. Exit
+    8. Manually select disks for QEMU
 
 Features
 
     Automatic Installation of Proxmox Products:
         Choose from Proxmox Virtual Environment, Proxmox Backup Server, or Proxmox Mail Gateway.
         Automatically download the latest version of the selected product.
+        ISO downloads use HTTPS with SHA256 checksum verification.
 
     VNC Configuration:
         Set a custom VNC password for secure access.
@@ -70,6 +74,9 @@ Features
     UEFI Support:
         Optionally use UEFI for installation and running the system.
         Automatically configure UEFI boot settings.
+
+    DNS Configuration:
+        Configurable DNS server via -dns flag (default 1.1.1.1).
 
     Network Configuration:
         Automatically detect and configure network settings.
@@ -82,6 +89,9 @@ Features
     NoVNC Integration:
         Automatically set up and run noVNC for web-based VNC access.
         Cleanly stop noVNC sessions when no longer needed.
+
+    Disk Selection:
+        Manually select which disks to pass to QEMU via interactive dialog.
 
     Interactive Menu:
         User-friendly menu interface for selecting installation and configuration options.
