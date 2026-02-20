@@ -389,15 +389,15 @@ select_proxmox_product_and_version() {
 
         case $PRODUCT_CHOICE in
             "Proxmox Virtual Environment")
-                GREP_PATTERN='proxmox-ve_(\d+.\d+-\d).iso'
+                GREP_PATTERN='proxmox-ve_([0-9]+.[0-9]+-[0-9]+).iso'
                 PRODUCT_NAME="Proxmox Virtual Environment"
                 ;;
             "Proxmox Backup Server")
-                GREP_PATTERN='proxmox-backup-server_(\d+.\d+-\d).iso'
+                GREP_PATTERN='proxmox-backup-server_([0-9]+.[0-9]+-[0-9]+).iso'
                 PRODUCT_NAME="Proxmox Backup Server"
                 ;;
             "Proxmox Mail Gateway")
-                GREP_PATTERN='proxmox-mail-gateway_(\d+.\d+-\d).iso'
+                GREP_PATTERN='proxmox-mail-gateway_([0-9]+.[0-9]+-[0-9]+).iso'
                 PRODUCT_NAME="Proxmox Mail Gateway"
                 ;;
         esac
