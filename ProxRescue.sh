@@ -39,7 +39,7 @@ USE_UEFI=""
 NAME_SERVER="1.1.1.1"
 
 QEMU_MEMORY="3000"	# in megabytes
-QEMU_DISK_ARGS=""
+QEMU_DISK_ARGS=()
 
 if [ -z "$VNC_PASSWORD" ]; then
     if [ "$VNC_PASSWORD_LENGTH" -lt 8 ] || [ "$VNC_PASSWORD_LENGTH" -gt 20 ]; then
@@ -262,10 +262,10 @@ select_disks() {
     local dialog_rc=0
     selected_disks_output=$(dialog --checklist "Select disks to use for QEMU:" 15 50 8 "${disk_options[@]}" 3>&1 1>&2 2>&3 3>&-) || dialog_rc=$?
     if [ "$dialog_rc" -eq 0 ] && [ -n "$selected_disks_output" ]; then
-        QEMU_DISK_ARGS=""
+        QEMU_DISK_ARGS=()
         local disk_index=0
         for disk_name in $selected_disks_output; do
-            QEMU_DISK_ARGS="$QEMU_DISK_ARGS -drive file=/dev/${disk_name},format=raw,if=virtio,index=${disk_index},media=disk"
+            QEMU_DISK_ARGS+=(-drive "file=/dev/${disk_name},format=raw,if=virtio,index=${disk_index},media=disk")
             disk_index=$((disk_index + 1))
         done
     else
@@ -277,25 +277,24 @@ select_disks() {
 run_qemu() {
     get_network_info
     local task=$1
-    if [ -z "$QEMU_DISK_ARGS" ]; then
+    if [ ${#QEMU_DISK_ARGS[@]} -eq 0 ]; then
         local disks
         disks=$(lsblk -dn -o NAME,TYPE -e 1,7,11,14,15 | grep -E 'nvme|sd|vd' | awk '$2 == "disk" {print $1}' || true)
         local disk_index=0
         for disk in $disks; do
-            QEMU_DISK_ARGS="$QEMU_DISK_ARGS -drive file=/dev/${disk},format=raw,if=virtio,index=${disk_index},media=disk"
+            QEMU_DISK_ARGS+=(-drive "file=/dev/${disk},format=raw,if=virtio,index=${disk_index},media=disk")
             disk_index=$((disk_index + 1))
         done
     fi
 
-    QEMU_COMMON_ARGS="-daemonize -enable-kvm -m $QEMU_MEMORY -vnc :0,password=on -monitor telnet:127.0.0.1:4444,server,nowait"
-        
+    local QEMU_COMMON_ARGS=(-daemonize -enable-kvm -m "$QEMU_MEMORY" -vnc :0,password=on -monitor telnet:127.0.0.1:4444,server,nowait)
+
     if [ "$USE_UEFI" = "true" ]; then
-        QEMU_COMMON_ARGS="-bios /usr/share/ovmf/OVMF.fd $QEMU_COMMON_ARGS"
+        QEMU_COMMON_ARGS=(-bios /usr/share/ovmf/OVMF.fd "${QEMU_COMMON_ARGS[@]}")
     fi
     if [ "$task" = "install" ]; then
-        QEMU_CDROM_ARGS="-drive file=/tmp/proxmox.iso,index=0,media=cdrom -boot d"
-        # Word splitting on unquoted vars is intentional here — each flag must be a separate argument
-        qemu-system-x86_64 $QEMU_COMMON_ARGS $QEMU_DISK_ARGS $QEMU_CDROM_ARGS
+        local QEMU_CDROM_ARGS=(-drive file=/tmp/proxmox.iso,index=0,media=cdrom -boot d)
+        qemu-system-x86_64 "${QEMU_COMMON_ARGS[@]}" "${QEMU_DISK_ARGS[@]}" "${QEMU_CDROM_ARGS[@]}"
         echo -e "\nQemu running...."
         sleep 2
         echo "change vnc password $VNC_PASSWORD" | nc -q 1 127.0.0.1 4444 || true
@@ -327,10 +326,10 @@ run_qemu() {
             fi
         done
     elif [ "$task" = "settings" ]; then
-        QEMU_NETWORK_SETTINGS="-net user,hostfwd=tcp::2222-:22 -net nic"
-        qemu-system-x86_64 $QEMU_COMMON_ARGS $QEMU_DISK_ARGS $QEMU_NETWORK_SETTINGS
+        local QEMU_NETWORK_SETTINGS=(-net user,hostfwd=tcp::2222-:22 -net nic)
+        qemu-system-x86_64 "${QEMU_COMMON_ARGS[@]}" "${QEMU_DISK_ARGS[@]}" "${QEMU_NETWORK_SETTINGS[@]}"
     elif [ "$task" = "runsystem" ]; then
-        qemu-system-x86_64 $QEMU_COMMON_ARGS $QEMU_DISK_ARGS &
+        qemu-system-x86_64 "${QEMU_COMMON_ARGS[@]}" "${QEMU_DISK_ARGS[@]}" &
         QEMU_PID=$!
         echo -e "\nQemu running...."
         sleep 2
