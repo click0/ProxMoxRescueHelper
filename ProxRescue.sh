@@ -2,21 +2,21 @@
 set -euo pipefail
 
 # ============================================================================================
-#  ██████  ██████   ██████  ██   ██ ███    ███  ██████  ██   ██    ██ ███    ██ ███████  ██████  
-# ██   ██ ██   ██ ██    ██  ██ ██  ████  ████ ██    ██  ██ ██     ██ ████   ██ ██      ██    ██ 
-# ██████  ██████  ██    ██   ███   ██ ████ ██ ██    ██   ███      ██ ██ ██  ██ █████   ██    ██ 
-# ██      ██   ██ ██    ██  ██ ██  ██  ██  ██ ██    ██  ██ ██     ██ ██  ██ ██ ██      ██    ██ 
-# ██      ██   ██  ██████  ██   ██ ██      ██  ██████  ██   ██ ██ ██ ██   ████ ██       ██████  
-# 
+#  ██████  ██████   ██████  ██   ██ ███    ███  ██████  ██   ██    ██ ███    ██ ███████  ██████
+# ██   ██ ██   ██ ██    ██  ██ ██  ████  ████ ██    ██  ██ ██     ██ ████   ██ ██      ██    ██
+# ██████  ██████  ██    ██   ███   ██ ████ ██ ██    ██   ███      ██ ██ ██  ██ █████   ██    ██
+# ██      ██   ██ ██    ██  ██ ██  ██  ██  ██ ██    ██  ██ ██     ██ ██  ██ ██ ██      ██    ██
+# ██      ██   ██  ██████  ██   ██ ██      ██  ██████  ██   ██ ██ ██ ██   ████ ██       ██████
+#
 # Proxmox Products Installer in Rescue Mode for Hetzner
-# 
+#
 # © 2024 Proxmox UA www.proxmox.info. Все права защищены.
-# 
+#
 # Сообщества и поддержка:
 # - Telegram:https://t.me/Proxmox_UA
 # - GitHub: https://github.com/Proxmoxinfo/ProxMoxRescueHelper
 # - Website: https://proxmox.info
-# 
+#
 # Этот скрипт предназначен для установки продуктов Proxmox в режиме восстановления на серверах Hetzner.
 # ============================================================================================
 
@@ -34,13 +34,13 @@ logo='
 '
 
 VNC_PASSWORD=""
-VNC_PASSWORD_LENGTH=10  # min 8, max 20
+VNC_PASSWORD_LENGTH=10 # min 8, max 20
 PRODUCT_CHOICE=""
 NOVNC_PORT=""
 USE_UEFI=""
 NAME_SERVER="1.1.1.1"
 
-QEMU_MEMORY="3000"	# in megabytes
+QEMU_MEMORY="3000" # in megabytes
 QEMU_DISK_ARGS=()
 
 if [ -z "$VNC_PASSWORD" ]; then
@@ -50,8 +50,8 @@ if [ -z "$VNC_PASSWORD" ]; then
     fi
     VNC_PASSWORD=$(head -c 256 /dev/urandom | tr -dc A-Za-z0-9 | head -c "$VNC_PASSWORD_LENGTH")
 fi
-if [ -z "$NOVNC_PORT" ]; then    
-    NOVNC_PORT=8080    
+if [ -z "$NOVNC_PORT" ]; then
+    NOVNC_PORT=8080
 fi
 
 show_help() {
@@ -73,10 +73,10 @@ show_help() {
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        -p|--password)
+        -p | --password)
             VNC_PASSWORD="$2"
-            shift 
-            shift 
+            shift
+            shift
             ;;
         -vport)
             if [[ "$2" =~ ^[0-9]+$ ]] && [ "$2" -ge 1 ] && [ "$2" -le 65535 ]; then
@@ -87,18 +87,18 @@ while [[ $# -gt 0 ]]; do
             fi
             shift
             shift
-            ;;    
+            ;;
         -ve)
             PRODUCT_CHOICE="Proxmox Virtual Environment"
-            shift 
+            shift
             ;;
         -bs)
             PRODUCT_CHOICE="Proxmox Backup Server"
-            shift 
+            shift
             ;;
         -mg)
             PRODUCT_CHOICE="Proxmox Mail Gateway"
-            shift 
+            shift
             ;;
         -dns)
             if [[ "$2" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
@@ -114,10 +114,10 @@ while [[ $# -gt 0 ]]; do
             USE_UEFI="true"
             shift
             ;;
-        -h|--help)
+        -h | --help)
             show_help
             exit 0
-            ;;    
+            ;;
         *)
             echo "Warning: Unknown option: $1"
             shift
@@ -136,7 +136,7 @@ clear_list() {
 
 print_logo() {
     clear
-    echo "$logo"        
+    echo "$logo"
 }
 
 get_network_info() {
@@ -170,7 +170,6 @@ get_network_info() {
     CIDR=$(echo "$IP_CIDR" | cut -d'/' -f2)
 }
 
-
 check_and_install_packages() {
     local required_packages=(curl sshpass dialog)
     local missing_packages=()
@@ -184,7 +183,10 @@ check_and_install_packages() {
         echo "$logo"
     else
         echo "Installing required packages..."
-        apt update -qq || { echo "Error: apt update failed."; exit 1; }
+        apt update -qq || {
+            echo "Error: apt update failed."
+            exit 1
+        }
         for package in "${missing_packages[@]}"; do
             echo "Installing package: $package"
             if ! apt install -y "$package" -qq; then
@@ -196,7 +198,6 @@ check_and_install_packages() {
         echo "$logo"
     fi
 }
-
 
 install_novnc() {
     echo "Checking for noVNC installation..."
@@ -212,9 +213,9 @@ install_novnc() {
             return 1
         fi
         echo "Renaming vnc.html to index.html..."
-        cp noVNC/vnc.html noVNC/index.html        
+        cp noVNC/vnc.html noVNC/index.html
     else
-        echo "noVNC is already installed."        
+        echo "noVNC is already installed."
         if [ ! -f "noVNC/index.html" ]; then
             echo "Renaming vnc.html to index.html..."
             cp noVNC/vnc.html noVNC/index.html
@@ -229,7 +230,7 @@ configure_network() {
     local tmp_netcfg
     tmp_netcfg=$(mktemp /tmp/proxmox_network_config.XXXXXX)
     trap 'rm -f "$tmp_netcfg"' RETURN
-    cat > "$tmp_netcfg" <<EOF
+    cat >"$tmp_netcfg" <<EOF
 auto lo
 iface lo inet loopback
 
@@ -277,7 +278,7 @@ select_disks() {
         disk_name=$(echo "$disk" | awk '{print $1}')
         local disk_size
         disk_size=$(echo "$disk" | awk '{print $2}')
-        disk_options+=("$disk_name" "$disk_size" on)  # Все диски по умолчанию включены
+        disk_options+=("$disk_name" "$disk_size" on) # Все диски по умолчанию включены
     done
     local selected_disks_output=""
     local dialog_rc=0
@@ -336,11 +337,11 @@ run_qemu() {
         echo -e "Ip for vnc connect:  $IP_ADDRESS\n"
         echo "For use NoVNC open in browser http://$IP_ADDRESS:$NOVNC_PORT"
         echo -e "\nYour password for connect: \033[1m$VNC_PASSWORD\033[0m\n"
-        ./noVNC/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen "$IP_ADDRESS:$NOVNC_PORT" > /dev/null 2>&1 &
+        ./noVNC/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen "$IP_ADDRESS:$NOVNC_PORT" >/dev/null 2>&1 &
         NOVNC_PID=$!
         while true; do
             # pgrep is used here because qemu runs with -daemonize (no direct PID)
-            if ! pgrep -f "qemu-system-x86_64" > /dev/null; then
+            if ! pgrep -f "qemu-system-x86_64" >/dev/null; then
                 echo "QEMU process has stopped unexpectedly."
                 kill "$NOVNC_PID" 2>/dev/null || true
                 echo "noVNC stopped."
@@ -373,7 +374,7 @@ run_qemu() {
         echo -e "Ip for vnc connect:  $IP_ADDRESS\n"
         echo "For use NoVNC open in browser http://$IP_ADDRESS:$NOVNC_PORT"
         echo -e "\nYour password for connect: \033[1m$VNC_PASSWORD\033[0m\n"
-        ./noVNC/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen "$IP_ADDRESS:$NOVNC_PORT" > /dev/null 2>&1 &
+        ./noVNC/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen "$IP_ADDRESS:$NOVNC_PORT" >/dev/null 2>&1 &
         NOVNC_PID=$!
         while true; do
             if ! kill -0 "$QEMU_PID" 2>/dev/null; then
@@ -394,7 +395,7 @@ run_qemu() {
                 break
             fi
         done
-    fi   
+    fi
 }
 
 verify_iso_checksum() {
@@ -456,11 +457,26 @@ select_proxmox_product_and_version() {
             read -r -p "Enter number (1-4): " product_choice
 
             case "$product_choice" in
-                1) GREP_PATTERN='proxmox-ve_([0-9]+\.[0-9]+-[0-9]+)\.iso'; PRODUCT_NAME="Proxmox Virtual Environment"; valid_choice=1 ;;
-                2) GREP_PATTERN='proxmox-backup-server_([0-9]+\.[0-9]+-[0-9]+)\.iso'; PRODUCT_NAME="Proxmox Backup Server"; valid_choice=1 ;;
-                3) GREP_PATTERN='proxmox-mail-gateway_([0-9]+\.[0-9]+-[0-9]+)\.iso'; PRODUCT_NAME="Proxmox Mail Gateway"; valid_choice=1 ;;
-                4) echo "Returning to main menu..."; return ;;
-                *) echo "Invalid selection. Please, try again."; ;;
+                1)
+                    GREP_PATTERN='proxmox-ve_([0-9]+\.[0-9]+-[0-9]+)\.iso'
+                    PRODUCT_NAME="Proxmox Virtual Environment"
+                    valid_choice=1
+                    ;;
+                2)
+                    GREP_PATTERN='proxmox-backup-server_([0-9]+\.[0-9]+-[0-9]+)\.iso'
+                    PRODUCT_NAME="Proxmox Backup Server"
+                    valid_choice=1
+                    ;;
+                3)
+                    GREP_PATTERN='proxmox-mail-gateway_([0-9]+\.[0-9]+-[0-9]+)\.iso'
+                    PRODUCT_NAME="Proxmox Mail Gateway"
+                    valid_choice=1
+                    ;;
+                4)
+                    echo "Returning to main menu..."
+                    return
+                    ;;
+                *) echo "Invalid selection. Please, try again." ;;
             esac
         done
     fi
@@ -482,13 +498,13 @@ select_proxmox_product_and_version() {
         echo "Error: No ISO versions found for $PRODUCT_NAME."
         return
     fi
-    IFS=$'\n' read -r -d '' -a iso_array <<< "$AVAILABLE_ISOS" || true
+    IFS=$'\n' read -r -d '' -a iso_array <<<"$AVAILABLE_ISOS" || true
     echo "Please select the version to install (default is the latest version):"
     for i in "${!iso_array[@]}"; do
-        echo "$((i+1))) ${iso_array[i]}"
+        echo "$((i + 1))) ${iso_array[i]}"
     done
-    echo "$(( ${#iso_array[@]} + 1 )) Return to product selection"
-    echo "$(( ${#iso_array[@]} + 2 )) Return to main menu"
+    echo "$((${#iso_array[@]} + 1)) Return to product selection"
+    echo "$((${#iso_array[@]} + 2)) Return to main menu"
 
     read -r -t 30 -p "Enter number (1-$((${#iso_array[@]} + 2))) or wait for auto-selection: " version_choice || true
     if [ -z "${version_choice:-}" ]; then
@@ -496,15 +512,15 @@ select_proxmox_product_and_version() {
         echo "Auto-selected the latest version due to timeout."
     fi
 
-    if [ "$version_choice" -eq "$(( ${#iso_array[@]} + 1 ))" ]; then
+    if [ "$version_choice" -eq "$((${#iso_array[@]} + 1))" ]; then
         echo "Returning to product selection..."
         select_proxmox_product_and_version
         return
-    elif [ "$version_choice" -eq "$(( ${#iso_array[@]} + 2 ))" ]; then
+    elif [ "$version_choice" -eq "$((${#iso_array[@]} + 2))" ]; then
         echo "Returning to main menu..."
         return
     elif [[ "$version_choice" =~ ^[0-9]+$ ]] && [ "$version_choice" -ge 1 ] && [ "$version_choice" -le "${#iso_array[@]}" ]; then
-        selected_iso="${iso_array[$((version_choice-1))]}"
+        selected_iso="${iso_array[$((version_choice - 1))]}"
     else
         echo "Invalid selection, using the latest version."
         selected_iso="${iso_array[0]}"
@@ -529,16 +545,15 @@ select_proxmox_product_and_version() {
     run_qemu "install"
 }
 
-
 reboot_server() {
     echo "Are you sure you want to reboot the server? (Y/n)"
     read -r answer
-    if [[ $answer =~ ^[Yy]?$ ]]; then 
+    if [[ $answer =~ ^[Yy]?$ ]]; then
         echo "Rebooting..."
         shutdown -r now
     else
         echo "Reboot canceled. Returning to main menu..."
-        return 
+        return
     fi
 }
 
@@ -578,14 +593,26 @@ show_menu() {
         read -r -p "Enter choice: " choice
         case "$choice" in
             1) select_proxmox_product_and_version ;;
-            2) USE_UEFI=true; select_proxmox_product_and_version ;;
+            2)
+                USE_UEFI=true
+                select_proxmox_product_and_version
+                ;;
             3) runInstalledSystem ;;
-            4) USE_UEFI=true; runInstalledSystem ;;
+            4)
+                USE_UEFI=true
+                runInstalledSystem
+                ;;
             5) changeVncPassword ;;
-            6) reboot_server; return ;;
+            6)
+                reboot_server
+                return
+                ;;
             7) exitScript ;;
             8) select_disks ;;
-            *) echo "Invalid selection. Please, try again."; continue ;;
+            *)
+                echo "Invalid selection. Please, try again."
+                continue
+                ;;
         esac
         show_menu
         break
