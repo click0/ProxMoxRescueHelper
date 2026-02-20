@@ -215,7 +215,7 @@ EOF
     echo "Setting network in your Server"
     run_qemu "settings"
     while true; do
-        read -s -p "To configure the network on your server, enter the root password you set when installing $PRODUCT_NAME: " ROOT_PASSWORD
+        read -rs -p "To configure the network on your server, enter the root password you set when installing $PRODUCT_NAME: " ROOT_PASSWORD
         local scp_rc=0
         sshpass -p "$ROOT_PASSWORD" scp -o StrictHostKeyChecking=no -P 2222 /tmp/proxmox_network_config root@127.0.0.1:/etc/network/interfaces || scp_rc=$?
         if [ "$scp_rc" -eq 5 ]; then
@@ -496,8 +496,8 @@ runInstalledSystem() {
 
 changeVncPassword() {
     echo "Enter new password for VNC:"
-    read VNC_PASSWORD
-    echo "VNC password set to $VNC_PASSWORD"
+    read -r VNC_PASSWORD
+    echo "VNC password has been updated."
 }
 
 exitScript() {
