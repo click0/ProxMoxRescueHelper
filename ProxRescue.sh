@@ -122,10 +122,22 @@ print_logo() {
 }
 
 get_network_info() {
-    INTERFACE_NAME=$(udevadm info -q property /sys/class/net/$(ls /sys/class/net | grep -E '^(eth|ens|enp)') | grep "ID_NET_NAME_PATH=" | cut -d'=' -f2)
-    if [ -z "$INTERFACE_NAME" ]; then
+    local iface_candidates
+    iface_candidates=$(ls /sys/class/net | grep -E '^(eth|ens|enp)' || true)
+
+    if [ -z "$iface_candidates" ]; then
         echo "No valid network interface found."
         exit 1
+    fi
+
+    # Take the first matching interface if multiple are found
+    local first_iface
+    first_iface=$(echo "$iface_candidates" | head -n 1)
+
+    INTERFACE_NAME=$(udevadm info -q property "/sys/class/net/${first_iface}" | grep "ID_NET_NAME_PATH=" | cut -d'=' -f2 || true)
+    if [ -z "$INTERFACE_NAME" ]; then
+        # Fallback to the raw interface name if udevadm does not provide a path-based name
+        INTERFACE_NAME="$first_iface"
     fi
 
     IP_CIDR=$(ip addr show "$INTERFACE_NAME" | grep "inet\b" | awk '{print $2}' || true)
