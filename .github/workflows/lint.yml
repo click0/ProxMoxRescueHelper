@@ -26,12 +26,12 @@ jobs:
       - name: Check bash syntax
         run: |
           errors=0
-          for f in $(find . -name '*.sh' -type f); do
+          while IFS= read -r -d '' f; do
             if ! bash -n "$f"; then
               echo "Syntax error in $f"
               errors=$((errors + 1))
             fi
-          done
+          done < <(find . -name '*.sh' -type f -print0)
           if [ "$errors" -gt 0 ]; then
             echo "$errors file(s) with syntax errors"
             exit 1
@@ -67,7 +67,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: raven-actions/actionlint@v2
+      - name: Install actionlint
+        run: bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+      - name: Run actionlint
+        run: ./actionlint
 
   markdownlint:
     name: Markdown Lint
