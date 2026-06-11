@@ -1,6 +1,17 @@
 #!/bin/bash
 set -euo pipefail
 
+# When run via `bash -c "$(curl ...)"`, this whole script becomes the
+# process's command line. Some procps tools (pgrep/pkill -f, used below)
+# crash on such an oversized /proc/*/cmdline, so re-exec from a temp file
+# to give the process a normal short command line.
+if [ -n "${BASH_EXECUTION_STRING:-}" ]; then
+    tmp_script=$(mktemp /tmp/proxrescue.XXXXXX.sh)
+    printf '%s\n' "$BASH_EXECUTION_STRING" >"$tmp_script"
+    chmod +x "$tmp_script"
+    exec bash "$tmp_script" "$@"
+fi
+
 # ============================================================================================
 #  ██████  ██████   ██████  ██   ██ ███    ███  ██████  ██   ██    ██ ███    ██ ███████  ██████
 # ██   ██ ██   ██ ██    ██  ██ ██  ████  ████ ██    ██  ██ ██     ██ ████   ██ ██      ██    ██
