@@ -23,19 +23,19 @@ ProxRescue is a single self-contained script — no repo to clone, just one file
 Run it directly in the Hetzner rescue system:
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/Proxmoxinfo/ProxMoxRescueHelper/refs/heads/main/ProxRescue.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/click0/ProxMoxRescueHelper/refs/heads/main/ProxRescue.sh)"
 ```
 
 Want to pass flags with the one-liner? Add `_` as a placeholder for `$0`:
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/Proxmoxinfo/ProxMoxRescueHelper/refs/heads/main/ProxRescue.sh)" _ -pve -auto -dns 8.8.8.8
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/click0/ProxMoxRescueHelper/refs/heads/main/ProxRescue.sh)" _ -pve -auto -dns 8.8.8.8
 ```
 
 Or grab the script once and run it whenever you like:
 
 ```bash
-curl -fsSL -o ProxRescue.sh https://raw.githubusercontent.com/Proxmoxinfo/ProxMoxRescueHelper/refs/heads/main/ProxRescue.sh && chmod +x ProxRescue.sh
+curl -fsSL -o ProxRescue.sh https://raw.githubusercontent.com/click0/ProxMoxRescueHelper/refs/heads/main/ProxRescue.sh && chmod +x ProxRescue.sh
 ./ProxRescue.sh -pve -auto -dns 8.8.8.8
 ```
 
@@ -189,5 +189,5 @@ SOFTWARE.
 ## Community & Support
 
 - Telegram: [Proxmox_UA](https://t.me/Proxmox_UA)
-- GitHub: [Proxmoxinfo/ProxMoxRescueHelper](https://github.com/Proxmoxinfo/ProxMoxRescueHelper)
+- GitHub: [click0/ProxMoxRescueHelper](https://github.com/click0/ProxMoxRescueHelper)
 - Website: [proxmox.info](https://proxmox.info)

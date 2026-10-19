@@ -25,7 +25,7 @@ fi
 #
 # Сообщества и поддержка:
 # - Telegram:https://t.me/Proxmox_UA
-# - GitHub: https://github.com/Proxmoxinfo/ProxMoxRescueHelper
+# - GitHub: https://github.com/click0/ProxMoxRescueHelper
 # - Website: https://proxmox.info
 #
 # Этот скрипт предназначен для установки продуктов Proxmox в режиме восстановления на серверах Hetzner.
@@ -44,7 +44,7 @@ OVMF_PATH="/usr/share/ovmf/OVMF.fd"
 REBOOT_TIMEOUT=5
 NOVNC_VERSION=""
 PROXMOX_MIRROR="https://download.proxmox.com"
-SCRIPT_UPDATE_URL="https://raw.githubusercontent.com/Proxmoxinfo/ProxMoxRescueHelper/refs/heads/main/ProxRescue.sh"
+SCRIPT_UPDATE_URL="https://raw.githubusercontent.com/click0/ProxMoxRescueHelper/refs/heads/main/ProxRescue.sh"
 
 logo='
 ██████  ██████   ██████  ██   ██ ███    ███  ██████  ██   ██    ██ ███    ██ ███████  ██████  

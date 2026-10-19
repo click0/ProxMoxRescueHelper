@@ -23,19 +23,19 @@ ProxRescue — это единый самодостаточный скрипт: 
 Запуск напрямую в rescue-системе Hetzner:
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/Proxmoxinfo/ProxMoxRescueHelper/refs/heads/main/ProxRescue.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/click0/ProxMoxRescueHelper/refs/heads/main/ProxRescue.sh)"
 ```
 
 Хотите сразу передать флаги в этом варианте запуска? Добавьте `_` в качестве заглушки для `$0`:
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/Proxmoxinfo/ProxMoxRescueHelper/refs/heads/main/ProxRescue.sh)" _ -pve -auto -dns 8.8.8.8
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/click0/ProxMoxRescueHelper/refs/heads/main/ProxRescue.sh)" _ -pve -auto -dns 8.8.8.8
 ```
 
 Либо скачайте скрипт один раз и запускайте его с нужными флагами когда понадобится:
 
 ```bash
-curl -fsSL -o ProxRescue.sh https://raw.githubusercontent.com/Proxmoxinfo/ProxMoxRescueHelper/refs/heads/main/ProxRescue.sh && chmod +x ProxRescue.sh
+curl -fsSL -o ProxRescue.sh https://raw.githubusercontent.com/click0/ProxMoxRescueHelper/refs/heads/main/ProxRescue.sh && chmod +x ProxRescue.sh
 ./ProxRescue.sh -pve -auto -dns 8.8.8.8
 ```
 
@@ -189,5 +189,5 @@ SOFTWARE.
 ## Сообщество и поддержка
 
 - Telegram: [Proxmox_UA](https://t.me/Proxmox_UA)
-- GitHub: [Proxmoxinfo/ProxMoxRescueHelper](https://github.com/Proxmoxinfo/ProxMoxRescueHelper)
+- GitHub: [click0/ProxMoxRescueHelper](https://github.com/click0/ProxMoxRescueHelper)
 - Сайт: [proxmox.info](https://proxmox.info)
